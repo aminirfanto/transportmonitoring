@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<!-- saved from url=(0061)file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/index_9.html -->
+<html lang="id"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UNIFAM Transport Monitoring</title>
+<link rel="stylesheet" href="./UNIFAM Transport Monitoring rev9_files/leaflet.min.css" onerror="this.onerror=null;this.href=&#39;https://unpkg.com/leaflet@1.9.4/dist/leaflet.css&#39;;">
+<script>
+  // Pastikan CSS Leaflet termuat; jika cloudflare gagal, sisipkan unpkg & jsdelivr
+  (function(){
+    function addCss(href){var l=document.createElement("link");l.rel="stylesheet";l.href=href;document.head.appendChild(l);}
+    setTimeout(function(){
+      // cek apakah CSS Leaflet aktif (kelas .leaflet-tile harus position:absolute)
+      var t=document.createElement("div");t.className="leaflet-tile";t.style.display="none";document.body.appendChild(t);
+      var pos=getComputedStyle(t).position;
+      document.body.removeChild(t);
+      if(pos!=="absolute"){
+        addCss("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
+        addCss("https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css");
+      }
+    },1200);
+  })();
+  // Muat Leaflet JS dengan fallback berlapis: cloudflare -> unpkg -> jsdelivr
+  (function(){
+    var cdns=[
+      "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
+      "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js",
+      "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+    ];
+    var i=0;
+    function tryNext(){
+      if(typeof L!=="undefined"){window.LEAFLET_READY=true;return;}
+      if(i>=cdns.length){window.LEAFLET_FAILED=true;return;}
+      var s=document.createElement("script");
+      s.src=cdns[i++];
+      s.onload=function(){window.LEAFLET_READY=true;};
+      s.onerror=tryNext;
+      document.head.appendChild(s);
+    }
+    tryNext();
+  })();
+</script><script src="./UNIFAM Transport Monitoring rev9_files/leaflet.min.js.download"></script>
+<script type="module">
+  // ====== FIREBASE SDK ======
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, onValue, set, update, remove, get }
+    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  // ====== ISI CONFIG PROJECT ANDA DI SINI ======
+  const firebaseConfig = {
+    apiKey: "AIzaSyDf-Lvl8heY1cPYI2OmG5yehuryWCfiG_Q",
+    authDomain: "lacak-armada.firebaseapp.com",
+    databaseURL: "https://lacak-armada-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "lacak-armada",
+    storageBucket: "lacak-armada.firebasestorage.app",
+    messagingSenderId: "1005342218643",
+    appId: "1:1005342218643:web:8d5c2751f93c36372d3066"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // expose ke kode utama (non-module) lewat window.FB
+  window.FB = {
+    ref:(p)=>ref(db,p), onValue, set, update, remove, get,
+    ready:true
+  };
+  window.dispatchEvent(new Event("fb-ready"));
+</script>
+<style>
+  :root{
+    --ink:#1b2150; --paper:#eef1f7; --field:#0196aa; --field-deep:#29337b;
+    --navy:#29337b; --navy-deep:#1d2456; --teal:#0196aa; --teal-deep:#017a8a;
+    --amber:#e0922a; --clay:#c0442e; --line:#d4d9e6; --muted:#6b7088;
+    --ok:#0196aa; --warn:#e0922a; --bad:#c0442e; --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    background:var(--paper);color:var(--ink);-webkit-tap-highlight-color:transparent}
+  header{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-deep) 70%);color:#fff;padding:13px 18px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    position:sticky;top:0;z-index:1000;box-shadow:0 2px 14px rgba(29,36,86,.3)}
+  header h1{margin:0;font-size:17px;letter-spacing:.3px;font-weight:700;
+    display:flex;align-items:center;gap:10px}
+  .brand-logo{height:34px;width:auto;display:block}
+  .admin-tabs{display:flex;gap:6px;margin-top:16px;flex-wrap:wrap}
+  .atab{border:1px solid var(--line);background:#fff;color:var(--navy);font-weight:600;
+    font-size:13px;padding:9px 14px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .atab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .tabbadge{background:var(--clay);color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:800}
+  .seg{display:flex;gap:0;margin:4px 0 16px;border:1px solid var(--line);border-radius:9px;overflow:hidden;width:fit-content}
+  .segb{border:0;background:#fff;color:var(--muted);font-weight:600;font-size:13px;padding:8px 18px;cursor:pointer}
+  .segb.on{background:var(--teal);color:#fff}
+  .acc-big{text-align:center;padding:10px 0 4px}
+  .acc-pct{font-size:46px;font-weight:800;line-height:1}
+  .acc-ring{width:140px;height:140px;margin:6px auto}
+  .acc-stat{display:flex;gap:10px;margin-top:14px}
+  .acc-stat .box{flex:1;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+  .acc-stat .box .n{font-size:22px;font-weight:800}
+  .acc-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .acc-row:last-child{border-bottom:0}
+  .roleswitch{display:flex;background:rgba(255,255,255,.12);border-radius:999px;padding:3px}
+  .roleswitch button{border:0;background:transparent;color:#cfe6dd;
+    padding:6px 15px;border-radius:999px;font-weight:600;font-size:13px;cursor:pointer}
+  .roleswitch button.on{background:var(--teal);color:#fff}
+  main{max-width:760px;margin:0 auto;padding:16px}
+  .view{display:none}.view.on{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(40,30,10,.04)}
+  .card h2{margin:0 0 4px;font-size:16px}
+  .card .sub{margin:0 0 16px;color:var(--muted);font-size:13px}
+  label{display:block;font-size:12.5px;font-weight:600;margin:12px 0 5px;color:#3c352b}
+  input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);
+    border-radius:9px;font-size:14px;background:#fff;color:var(--ink);font-family:inherit}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--field);border-color:var(--field)}
+  .row{display:flex;gap:10px}.row>*{flex:1}
+  button.act{width:100%;border:0;background:linear-gradient(135deg,var(--teal),var(--teal-deep));color:#fff;font-weight:700;
+    font-size:15px;padding:13px;border-radius:10px;cursor:pointer;margin-top:18px;
+    transition:filter .15s}
+  button.act:hover{filter:brightness(1.07)}
+  button.act:disabled{background:#b9b3a6;cursor:not-allowed}
+  button.ghost{background:#fff;color:var(--field-deep);border:1.5px solid var(--field)}
+  button.danger{background:var(--clay)}
+  button.amber{background:var(--amber);color:#3a2406}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;
+    padding:4px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:.4px}
+  .p-wait{background:#fbe6cf;color:#8a5a12}
+  .p-ver{background:#cdeae0;color:#0a5c47}
+  .p-jalan{background:#d4e7fb;color:#1b4f86}
+  .p-tiba{background:#e7dcf7;color:#5a3a8a}
+  .p-bongkar{background:#dfeae0;color:#2f5a3f}
+  .p-selesai{background:#dcdcd4;color:#4a4a40}
+  .p-tolak{background:#f6d8d0;color:#8a2e1c}
+  .empty{text-align:center;color:var(--muted);padding:34px 14px;font-size:14px}
+  .empty .big{font-size:34px;display:block;margin-bottom:8px;opacity:.6}
+  .order{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:11px;background:#fff}
+  .order .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .order .plate{font-weight:800;font-size:16px;letter-spacing:.5px}
+  .order .meta{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+  .order .meta b{color:var(--ink);font-weight:600}
+  .order .acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .order .acts button{flex:1;min-width:108px;margin:0;padding:10px;font-size:13px}
+  #map{height:300px;border-radius:12px;border:1px solid var(--line);margin-top:6px;z-index:1}
+  .track-wrap{display:none}.track-wrap.on{display:block}
+  .stat{display:flex;gap:10px;margin-top:12px}
+  .stat .box{flex:1;background:#fff;border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;text-align:center}
+  .stat .box .n{font-size:18px;font-weight:800}
+  .stat .box .l{font-size:11px;color:var(--muted);margin-top:2px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);
+    background:var(--ink);color:#f3efe6;padding:12px 20px;border-radius:10px;font-size:14px;
+    z-index:3000;opacity:0;transition:.3s;box-shadow:0 6px 24px rgba(0,0,0,.3);max-width:90%}
+  .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  .photo-prev{margin-top:8px;border-radius:10px;width:100%;max-height:210px;object-fit:cover;
+    border:1px solid var(--line);display:none}
+  .photo-prev.on{display:block}
+  .gps-dot{width:9px;height:9px;border-radius:50%;background:#4ade80;display:inline-block;
+    box-shadow:0 0 0 0 rgba(74,222,128,.7);animation:pulse 1.6s infinite}
+  @keyframes pulse{70%{box-shadow:0 0 0 9px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .divider{height:1px;background:var(--line);margin:16px 0}
+  .timeline{list-style:none;padding:0;margin:10px 0 0;font-size:12.5px}
+  .timeline li{padding:4px 0 4px 18px;position:relative;color:var(--muted)}
+  .timeline li::before{content:"";position:absolute;left:3px;top:9px;width:7px;height:7px;
+    border-radius:50%;background:var(--field)}
+  .timeline li b{color:var(--ink)}
+  a.dl{display:inline-block;margin-top:8px;font-size:13px;color:var(--field-deep);font-weight:600}
+  .step-head{font-weight:800;font-size:13px;margin:14px 0 2px;color:var(--field-deep);
+    text-transform:uppercase;letter-spacing:.4px}
+  .done-note{background:#dfeae0;color:#2f5a3f;border-radius:8px;padding:8px 11px;
+    font-size:12.5px;font-weight:600;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1><img class="brand-logo" src="data:image/png;base64,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" alt="UNIFAM"> Transport Monitoring</h1>
+  <div class="roleswitch">
+    <button id="rb-sopir" class="on" onclick="setRole(&#39;sopir&#39;)">Sopir</button>
+    <button id="rb-admin" onclick="setRole(&#39;admin&#39;)">Admin</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ SOPIR ============ -->
+  <section id="v-sopir" class="view on">
+    <!-- daftar baru -->
+    <div id="sopir-form" class="card">
+      <h2>Daftar Pengiriman</h2>
+      <p class="sub">Isi data mobil &amp; tujuan setelah pemuatan selesai. GPS langsung aktif begitu didaftarkan.</p>
+      <label>Nama Sopir</label>
+      <input id="f-nama" placeholder="cth. Budi Santoso">
+      <div class="row">
+        <div><label>Ekspedisi (Sesuaikan yg ada pada Surat Jalan)</label><input id="f-eksp" placeholder="cth. PT Maju Jaya"></div>
+        <div><label>No. HP</label><input id="f-hp" placeholder="08xx" inputmode="numeric"></div>
+      </div>
+      <div class="row">
+        <div><label>Plat Nomor</label><input id="f-plat" placeholder="B 1234 XX" style="text-transform:uppercase"></div>
+        <div><label>Jenis Mobil</label>
+          <select id="f-jenis">
+            <option>Pick Up</option><option>CDE</option><option>CDD</option>
+            <option>Fuso</option><option>Tronton</option><option>Wingbox</option>
+          </select>
+        </div>
+      </div>
+      <label>Tujuan Pengiriman (Distributor)</label>
+      <div style="position:relative">
+        <input id="f-tujuan" placeholder="Ketik nama distributor / kota…" autocomplete="off" oninput="suggestTujuan(this.value)" onfocus="suggestTujuan(this.value)">
+        <div id="tujuan-list" style="display:none;position:absolute;z-index:50;left:0;right:0;top:100%;
+          background:#fff;border:1px solid var(--line);border-top:0;border-radius:0 0 9px 9px;
+          max-height:240px;overflow-y:auto;box-shadow:0 6px 18px rgba(40,30,10,.12)"></div>
+      </div>
+      <div id="leadtime-info" style="display:none;margin-top:8px;background:#cdeae0;color:#0a5c47;
+        border-radius:8px;padding:9px 12px;font-size:13px;font-weight:600"></div>
+      <label>No. Surat Jalan</label>
+      <div style="display:flex;align-items:stretch;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff">
+        <span style="display:flex;align-items:center;padding:0 11px;background:#eee7d8;color:#5a5040;font-weight:700;font-size:14px;border-right:1px solid var(--line)">SJPA-</span>
+        <input id="f-sj" placeholder="ketik nomornya saja" style="border:0;border-radius:0" inputmode="numeric">
+      </div>
+      <button class="act" onclick="daftar()">Daftarkan &amp; Mulai</button>
+      <div class="hint" style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span>ID perangkat Anda: <b id="my-id-label">sopir_0t9om8dr</b></span>
+        <button class="act ghost" style="margin:0;width:auto;padding:6px 12px;font-size:12px" onclick="gantiId()">Ganti</button>
+      </div>
+    </div>
+
+    <!-- pemulihan: klaim ulang pengiriman aktif bila ID hilang -->
+    <div class="card" id="recover-card" style="display: block;">
+      <h2>Lanjutkan Pengiriman Saya</h2>
+      <p class="sub">Ganti HP atau browser terhapus? Klaim ulang pengiriman yang masih berjalan.</p>
+      <div class="row">
+        <div><label>No. HP</label><input id="r-hp" placeholder="08xx" inputmode="numeric"></div>
+        <div><label>Plat Nomor</label><input id="r-plat" placeholder="B 1234 XX" style="text-transform:uppercase"></div>
+      </div>
+      <button class="act ghost" onclick="recover()">🔄 Cari &amp; Lanjutkan</button>
+    </div>
+
+    <!-- status pengiriman aktif sopir -->
+    <div id="sopir-active"></div>
+  </section>
+
+  <!-- ============ ADMIN ============ -->
+  <section id="v-admin" class="view">
+    <!-- LOGIN ADMIN -->
+    <div class="card" id="admin-login">
+      <h2>Login Admin</h2>
+      <p class="sub">Masuk untuk memantau seluruh armada.</p>
+      <label>ID Admin</label>
+      <input id="adm-id" placeholder="ID" autocomplete="username">
+      <label>Password</label>
+      <input id="adm-pw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key===&#39;Enter&#39;)adminLogin()">
+      <button class="act" onclick="adminLogin()">🔓 Masuk</button>
+    </div>
+
+    <!-- DASHBOARD (tampil setelah login) -->
+    <div id="admin-dash" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div><h2>Dashboard Monitoring</h2>
+        <p class="sub" style="margin-bottom:0">Pantau armada yang bekerja sama dengan kita secara langsung.</p></div>
+        <button class="act ghost" style="margin:0;width:auto;padding:8px 14px;font-size:13px" onclick="adminLogout()">Keluar</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="act ghost" style="margin:0;width:auto;padding:7px 12px;font-size:12px" onclick="toggleGantiPw()">🔑 Ganti ID / Password</button>
+        <button class="act ghost" style="margin:0;width:auto;padding:7px 12px;font-size:12px" onclick="isiDummy()">🧪 Isi Data Dummy</button>
+        <button class="act ghost" style="margin:0;width:auto;padding:7px 12px;font-size:12px;color:var(--bad);border-color:var(--bad)" onclick="hapusDummy()">🗑 Hapus Data Dummy</button>
+      </div>
+      <div id="ganti-pw-box" style="display:none;margin-top:14px;padding:14px;background:var(--paper);border-radius:10px;border:1px solid var(--line)">
+        <div style="font-weight:700;color:var(--navy);margin-bottom:8px">Ganti ID / Password Admin</div>
+        <label>Password Lama</label>
+        <input id="pw-cur" type="password" placeholder="Password saat ini">
+        <label>ID Admin Baru (kosongkan jika tetap)</label>
+        <input id="pw-newid" placeholder="ID baru (opsional)">
+        <label>Password Baru (min. 6 karakter)</label>
+        <input id="pw-new1" type="password" placeholder="Password baru">
+        <label>Ulangi Password Baru</label>
+        <input id="pw-new2" type="password" placeholder="Konfirmasi password baru">
+        <button class="act" onclick="gantiPassword()">💾 Simpan Perubahan</button>
+      </div>
+      <div class="stat" style="margin-top:14px">
+        <div class="box"><div class="n" id="s-wait">0</div><div class="l">Dalam Perjalanan</div></div>
+        <div class="box"><div class="n" id="s-jalan">0</div><div class="l">Tiba / Menunggu Bongkar</div></div>
+        <div class="box"><div class="n" id="s-selesai">0</div><div class="l">Selesai</div></div>
+      </div>
+      <div class="admin-tabs">
+        <button class="atab on" id="tab-mon" onclick="setAdminTab(&#39;mon&#39;)">📋 Monitoring</button>
+        <button class="atab" id="tab-late" onclick="setAdminTab(&#39;late&#39;)">🔴 Terlambat <span id="late-badge" class="tabbadge" style="display:none">0</span></button>
+        <button class="atab" id="tab-acc" onclick="setAdminTab(&#39;acc&#39;)">📊 Akurasi On-Time</button>
+      </div>
+    </div>
+
+    <!-- PANEL: MONITORING -->
+    <div id="pane-mon">
+    <!-- peta live -->
+    <div id="track-section" class="card track-wrap">
+      <h2 style="display:flex;align-items:center;gap:8px"><span class="gps-dot"></span> Live Tracking</h2>
+      <p class="sub" id="track-label">—</p>
+      <div id="map"></div>
+      <button class="act ghost" onclick="closeTrack()" style="margin-top:12px">Tutup Peta</button>
+    </div>
+
+    <div class="card">
+      <h2>Daftar Pengiriman</h2>
+      <p class="sub">Pantau armada yang sedang berjalan &amp; riwayat pengiriman.</p>
+      <div id="admin-list"></div>
+    </div>
+    </div><!-- /pane-mon -->
+
+    <!-- PANEL: TERLAMBAT -->
+    <div id="pane-late" style="display:none">
+      <div class="card">
+        <h2>Pengiriman Terlambat</h2>
+        <p class="sub">Belum ada konfirmasi tiba, padahal target lead time sudah terlewat.</p>
+        <div id="late-list"></div>
+      </div>
+    </div>
+
+    <!-- PANEL: AKURASI -->
+    <div id="pane-acc" style="display:none">
+      <div class="card">
+        <h2>Akurasi On-Time</h2>
+        <p class="sub">Persentase pengiriman yang tiba sesuai target lead time.</p>
+        <div class="seg" id="acc-seg">
+          <button class="segb on" onclick="setAccRange(&#39;day&#39;)">Hari</button>
+          <button class="segb" onclick="setAccRange(&#39;week&#39;)">Minggu</button>
+          <button class="segb" onclick="setAccRange(&#39;month&#39;)">Bulan</button>
+        </div>
+        <div id="acc-body"></div>
+      </div>
+    </div>
+    </div><!-- /admin-dash -->
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LEADTIME=[{"n": "CV. Ananda Berkah Sejahtera - LANGSA", "l": 13}, {"n": "CV. Aneka Sejati - TANJUNG BALAI KARIMUN", "l": 17}, {"n": "CV. Anugerah Jaya Perkasa - SUBANG", "l": 1}, {"n": "CV. Anugerah Sumber Gemilang - BONTANG", "l": 12}, {"n": "CV. Anugerah Sumber Gemilang - MELAK", "l": 14}, {"n": "CV. Arta Niaga Raya - BAUBAU", "l": 16}, {"n": "CV. Astera Lestari - SORONG", "l": 25}, {"n": "CV. Bahtera Samudera - TUAL", "l": 21}, {"n": "CV. Berjaya Makmur Sejahtera - TEMBILAHAN", "l": 8}, {"n": "CV. Bintang Baru Bersaudara - TEBING TINGGI", "l": 11}, {"n": "CV. Bintang Jaya Indragiri - INDRAGIRI HULU", "l": 10}, {"n": "CV. Budiana - PANGKALAN BUN", "l": 15}, {"n": "CV. CS Lestari Jaya - KISARAN", "l": 12}, {"n": "CV. Durlindo Jaya - DURI", "l": 12}, {"n": "CV. Duta Prima - TOLI TOLI", "l": 26}, {"n": "CV. Gemilang Abadi - CILACAP", "l": 2}, {"n": "CV. Gemilang Abadi - DEMAK", "l": 2}, {"n": "CV. Gemilang Abadi - SEMARANG", "l": 2}, {"n": "CV. Gemilang Abadi - SEMARANG (HORECA)", "l": 2}, {"n": "CV. Gemilang Abadi - SEMARANG TIMUR", "l": 2}, {"n": "CV. Gemilang Abadi - WELERI", "l": 2}, {"n": "CV. Hero Sukses Makmur - MOROWALI", "l": 25}, {"n": "CV. Indrajaya - ENDE", "l": 16}, {"n": "CV. Indrajaya - LABUAN BAJO", "l": 16}, {"n": "CV. Indrajaya - RUTENG", "l": 15}, {"n": "CV. Jaya Josendra Cemerlang - PANGKALAN BALAI", "l": 4}, {"n": "CV. Jaya Josendra Cemerlang - TANJUNG RAYA", "l": 4}, {"n": "CV. Jaya Subur - BANYUWANGI", "l": 4}, {"n": "CV. Jaya Subur - JEMBER", "l": 3}, {"n": "CV. Jaya Subur - LUMAJANG", "l": 3}, {"n": "CV. Jaya Subur - PROBOLINGGO", "l": 3}, {"n": "CV. Jaya Subur - SITUBONDO", "l": 3}, {"n": "CV. Jethro Poso - POSO", "l": 22}, {"n": "CV. Jethro Sempurna - LUWUK", "l": 20}, {"n": "CV. Kawan Baru - BIMA", "l": 9}, {"n": "CV. Kawan Baru - SUMBAWA", "l": 9}, {"n": "CV. Kharisma Makmur - KETAPANG", "l": 20}, {"n": "CV. Mega Anugerah - JEPARA", "l": 2}, {"n": "CV. Mega Anugerah - KUDUS", "l": 2}, {"n": "CV. Mega Anugerah - PATI", "l": 2}, {"n": "CV. Mega Makmur - SEMARANG", "l": 2}, {"n": "CV. Mega Makmur - WELERI", "l": 2}, {"n": "CV. Megah Prima Sentosa - KENDARI", "l": 22}, {"n": "CV. Megah Prima Sentosa - KOLAKA", "l": 20}, {"n": "CV. Menara Nusantara Pratama - BANGKA", "l": 10}, {"n": "CV. Mitra Sejati Distribusi - LAMONGAN", "l": 3}, {"n": "CV. Mitra Usaha Berkat Indonesia - TORAJA", "l": 12}, {"n": "CV. Niaga Naditama - BELITUNG", "l": 10}, {"n": "CV. Permata Indah - MANOKWARI", "l": 23}, {"n": "CV. Restu Duta Niaga - KEBUMEN", "l": 2}, {"n": "CV. Restu Duta Niaga - MAGELANG", "l": 2}, {"n": "CV. Restu Duta Niaga - PURWOREJO", "l": 2}, {"n": "CV. Saudara Mandiri Jaya - LUBUK PAKAM", "l": 10}, {"n": "CV. Semarang Indah - MERAUKE", "l": 30}, {"n": "CV. Siantar Simalungun Sejati - SIBORONG-BORONG", "l": 10}, {"n": "CV. Simpang Utama - BERAU", "l": 21}, {"n": "CV. Sinar Bangun Persada - PURWODADI", "l": 2}, {"n": "CV. SKS - BIMA", "l": 9}, {"n": "CV. Sumber Jaya Bersama Utama - SIGLI", "l": 15}, {"n": "CV. Sumber Jaya Makmur - TERNATE", "l": 24}, {"n": "CV. Surya Terang - WAINGAPU", "l": 22}, {"n": "CV. Teratai Jaya - MAUMERE", "l": 18}, {"n": "CV. Tiga Saudara - KULONPROGO", "l": 2}, {"n": "CV. Tiga Saudara - WONOSARI", "l": 2}, {"n": "CV. Tiga Saudara - YOGYAKARTA", "l": 2}, {"n": "CV. Tiga Saudara - YOGYAKARTA (HORECA)", "l": 2}, {"n": "CV. Uniprime - AMBON", "l": 19}, {"n": "Dhany Cahyadi - KOTABUMI", "l": 2}, {"n": "Dhany Cahyadi - LAMPUNG", "l": 2}, {"n": "Dhany Cahyadi - METRO", "l": 2}, {"n": "Dhany Cahyadi - TULANGBAWANG", "l": 2}, {"n": "Erwin Giasi DRS - GORONTALO", "l": 25}, {"n": "Firma Dana - BANGKO", "l": 5}, {"n": "Firma Dana - BUNGO", "l": 5}, {"n": "Firma Dana - JAMBI", "l": 5}, {"n": "M Nasir Azmar - TAKENGON", "l": 14}, {"n": "PT. Adyajati Lestari - BINJAI", "l": 12}, {"n": "PT. Adyajati Lestari - MEDAN", "l": 12}, {"n": "PT. Adyajati Lestari - SIANTAR", "l": 12}, {"n": "PT. Adyajati Lestari - SIBOLGA", "l": 15}, {"n": "PT. Adyajati Lestari - SIDEMPUAN", "l": 16}, {"n": "PT. Adyajati Lestari - TANAH KARO", "l": 11}, {"n": "PT. Adyajati Lestari - TANJUNG MORAWA", "l": 12}, {"n": "PT. Alam Anugerah Sarana Daya - MADIUN", "l": 3}, {"n": "PT. Alam Anugerah Sarana Daya - PONOROGO", "l": 3}, {"n": "PT. Anugerah Bintang Timur Indonesia - SERANG", "l": 1}, {"n": "PT. Artam Kumalajaya - BALIKPAPAN", "l": 13}, {"n": "PT. Bahagia Intra Niaga - PALU", "l": 20}, {"n": "PT. Berhasil Sentosa Selalu - YOGYAKARTA", "l": 2}, {"n": "PT. Beyond El Oceano - BUKITTINGGI", "l": 6}, {"n": "PT. Beyond El Oceano - PADANG", "l": 5}, {"n": "PT. Beyond El Oceano - SOLOK", "l": 6}, {"n": "PT. Bintang Lima Imada - BATAM", "l": 15}, {"n": "PT. Bofin Utama Distribusi - BENGKULU", "l": 4}, {"n": "PT. Borwita Citra Prima - BONE", "l": 15}, {"n": "PT. Borwita Citra Prima - KENDARI", "l": 22}, {"n": "PT. Borwita Citra Prima - KOTAMOBAGU", "l": 18}, {"n": "PT. Borwita Citra Prima - MAKASSAR", "l": 13}, {"n": "PT. Borwita Citra Prima - MANADO", "l": 18}, {"n": "PT. Borwita Citra Prima - PARE-PARE", "l": 13}, {"n": "PT. Borwita Citra Prima - SENGKANG", "l": 13}, {"n": "PT. Cahaya Baru Putera - RANGKASBITUNG", "l": 1}, {"n": "PT. Cahaya Mega Sofian - SAMARINDA", "l": 15}, {"n": "PT. Delta Satria Dewata - BALI - Denpasar", "l": 5}, {"n": "PT. Delta Satria Dewata - BALI - Denpasar (HORECA)", "l": 5}, {"n": "PT. Delta Satria Dewata - KLUNGKUNG", "l": 6}, {"n": "PT. Delta Satria Dewata - NEGARE", "l": 5}, {"n": "PT. Delta Satria Dewata - SINGARAJA", "l": 5}, {"n": "PT. Dinamis Artha Sukses - JAKARTA", "l": 1}, {"n": "PT. Dinamis Artha Sukses - JAKARTA (HORECA)", "l": 1}, {"n": "PT. Farma Niaga Distribusindo - BANGKALAN", "l": 3}, {"n": "PT. Farma Niaga Distribusindo - PAMEKASAN", "l": 3}, {"n": "PT. Farma Niaga Distribusindo - SAMPANG", "l": 3}, {"n": "PT. Farma Niaga Distribusindo - SUMENEP", "l": 3}, {"n": "PT. Galaksi Jaya Raya - BLORA", "l": 2}, {"n": "PT. Harvest Prima Niaga - NABIRE", "l": 3}, {"n": "PT. Harvest Prima Niaga - SURABAYA", "l": 3}, {"n": "PT. Indo Prima Semesta - BOGOR", "l": 1}, {"n": "PT. Indo Prima Semesta - BOGOR (HORECA)", "l": 1}, {"n": "PT. Indo Prima Semesta - CIANJUR", "l": 1}, {"n": "PT. Indo Prima Semesta - DEPOK", "l": 1}, {"n": "PT. Indo Prima Semesta - LEUWILIANG", "l": 1}, {"n": "PT. Indo Prima Semesta - SUKABUMI", "l": 1}, {"n": "PT. Jenindo Prakarsa - PURWAKARTA", "l": 1}, {"n": "PT. Karenakau Makmur Indonesia - PEKALONGAN", "l": 2}, {"n": "PT. Karenakau Makmur Indonesia - PEMALANG", "l": 2}, {"n": "PT. Karenakau Makmur Indonesia - TEGAL", "l": 2}, {"n": "PT. Liquid Kencana Abadi - NIAS", "l": 15}, {"n": "PT. Mitra Sejati Distribusi - JOMBANG", "l": 3}, {"n": "PT. Mitragemilang Inti Perkasa - PEKALONGAN", "l": 2}, {"n": "PT. Mitragemilang Inti Perkasa - PURWOKERTO", "l": 2}, {"n": "PT. Mitragemilang Inti Perkasa - PURWOKERTO - Widodo Sakura", "l": 2}, {"n": "PT. Mitragemilang Inti Perkasa - TEGAL", "l": 2}, {"n": "PT. Mitragemilang Inti Perkasa - WONOSOBO", "l": 2}, {"n": "PT. Nusatamara Sukses Coy - LHOKSEUMAWE", "l": 14}, {"n": "PT. Panca Niaga Jaya Lestari - RANTAU PRAPAT", "l": 11}, {"n": "PT. Pangan Agro Lestari - MALANG", "l": 3}, {"n": "PT. Prima Bintang Permata - TANJUNGPINANG", "l": 16}, {"n": "PT. Prisma Reksa Sejahtera Bersama - DUMAI", "l": 12}, {"n": "PT. Prisma Reksa Sejahtera Bersama - DURI", "l": 12}, {"n": "PT. Prisma Reksa Sejahtera Bersama - PEKANBARU", "l": 12}, {"n": "PT. Prisma Reksa Sejahtera Bersama - UJUNG BATU", "l": 15}, {"n": "PT. Putra Bumi Asih - BEKASI", "l": 1}, {"n": "PT. Putra Bumi Asih - BEKASI (HORECA)", "l": 1}, {"n": "PT. Putra Matador Timor - ATAMBUA", "l": 19}, {"n": "PT. Putra Matador Timor - KUPANG", "l": 18}, {"n": "PT. Ramasurya Perkasa Distrindo - GRESIK", "l": 3}, {"n": "PT. Ramasurya Perkasa Distrindo - JAKARTA BARAT", "l": 1}, {"n": "PT. Ramasurya Perkasa Distrindo - JAKARTA BARAT (HORECA)", "l": 1}, {"n": "PT. Ramasurya Perkasa Distrindo - LAMONGAN", "l": 3}, {"n": "PT. Ramasurya Perkasa Distrindo - RANGKASBITUNG", "l": 1}, {"n": "PT. Ramasurya Perkasa Distrindo - SERANG", "l": 1}, {"n": "PT. Ramasurya Perkasa Distrindo - SIDOARJO", "l": 3}, {"n": "PT. Ramasurya Perkasa Distrindo - SIDOARJO (HORECA)", "l": 3}, {"n": "PT. Ramasurya Perkasa Distrindo - TANGERANG", "l": 1}, {"n": "PT. Ramasurya Perkasa Distrindo - TANGERANG (HORECA)", "l": 1}, {"n": "PT. Rejeki Mentaya - PALANGKARAYA", "l": 13}, {"n": "PT. Rejeki Mentaya - SAMPIT", "l": 15}, {"n": "PT. Sari Indah Permai - LOMBOK", "l": 8}, {"n": "PT. Sedulur Sukses Sejahtera - AMPAH", "l": 13}, {"n": "PT. Sedulur Sukses Sejahtera - BARABAI", "l": 13}, {"n": "PT. Sejahtera Sukses Sejati - BANJARMASIN", "l": 13}, {"n": "PT. Setia Indo Jaya - BATAM", "l": 15}, {"n": "PT. Setia Pawan Samudera - PONTIANAK", "l": 12}, {"n": "PT. Setia Pawan Samudera - SANGGAU", "l": 13}, {"n": "PT. Setia Pawan Samudera - SINGKAWANG", "l": 13}, {"n": "PT. Sinar Gowa Sukses - BULUKUMBA", "l": 13}, {"n": "PT. Sinar Gowa Sukses - MAMUJU", "l": 13}, {"n": "PT. SInar Gowa Sukses - MANGKUTANA", "l": 16}, {"n": "PT. Sinar Gowa Sukses - PALOPO", "l": 13}, {"n": "PT. Sinar Gowa Sukses - POLMAN", "l": 13}, {"n": "PT. Sinar Makmur Sejati - SURABAYA", "l": 3}, {"n": "PT. Sinar Sukses Sejahtera - BATULICIN", "l": 13}, {"n": "PT. Sinar Sukses Sejahtera - KOTABARU", "l": 13}, {"n": "PT. Sinar Sumber Sehat - PONTIANAK", "l": 12}, {"n": "PT. Sinar Sumber Sehat - SANGGAU", "l": 13}, {"n": "PT. Sinar Sumber Sehat - SINGKAWANG", "l": 13}, {"n": "PT. Sinergi Distribusi Utama - BLITAR", "l": 3}, {"n": "PT. Sinergi Distribusi Utama - KEDIRI", "l": 3}, {"n": "PT. Sinergi Distribusi Utama - NGANJUK", "l": 3}, {"n": "PT. Sinergi Distribusi Utama - TRENGGALEK", "l": 3}, {"n": "PT. Sinergi Distribusi Utama - TULUNGAGUNG", "l": 3}, {"n": "PT. Subur Ritelindo Sejahtera - KARAWANG", "l": 1}, {"n": "PT. Sukses Jaya Makmur Abadi - BANDA ACEH", "l": 10}, {"n": "PT. Sukses Jaya Permata - BATURAJA", "l": 3}, {"n": "PT. Sukses Jaya Permata - LAHAT", "l": 4}, {"n": "PT. Sukses Jaya Permata - PALEMBANG", "l": 4}, {"n": "PT. Sumber Jaya Adiperkasa - TOBELO", "l": 25}, {"n": "PT. Sumber Sari - BATAM", "l": 15}, {"n": "PT. Tiga Mutiara Prima - KLATEN", "l": 2}, {"n": "PT. Tiga Mutiara Prima - SALATIGA", "l": 2}, {"n": "PT. Tiga Mutiara Prima - SOLO", "l": 2}, {"n": "PT. Tiga Mutiara Prima - WONOGIRI", "l": 2}, {"n": "PT. Triyanto Sukses Mandiri - BANDUNG KOTA", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - BANJARAN", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - BANJARSARI", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - CIAMIS", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - CIMAHI", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - CIREBON", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - GARUT", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - INDRAMAYU", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - KUNINGAN", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - MAJALENGKA", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - SUBANG", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - SUMEDANG", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - TASIKMALAYA", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - UJUNG BERUNG", "l": 1}, {"n": "PT. Triyanto Sukses Mandiri - UJUNG BERUNG (HORECA)", "l": 1}, {"n": "PT. Unirama Duta Niaga - BANYUWANGI", "l": 4}, {"n": "PT. Unirama Duta Niaga - JEMBER", "l": 3}, {"n": "PT. Unirama Duta Niaga - KEDIRI", "l": 3}, {"n": "PT. Unirama Duta Niaga - MADIUN", "l": 3}, {"n": "PT. Unirama Duta Niaga - MALANG SINGOSARI", "l": 3}, {"n": "PT. Unirama Duta Niaga - MALANG SONOKEMBANG", "l": 3}, {"n": "PT. Unirama Duta Niaga - PASURUAN", "l": 3}, {"n": "PT. Unirama Duta Niaga - PONOROGO", "l": 3}, {"n": "PT. Unirama Duta Niaga - PROBOLINGGO", "l": 3}, {"n": "PT. Unirama Duta Niaga - SIDOARJO", "l": 3}, {"n": "PT. Unirama Duta Niaga - SURABAYA", "l": 3}, {"n": "PT. Unirama Duta Niaga - TULUNGAGUNG", "l": 3}, {"n": "PT. Unirama Duta Niaga MT - CIBUBUR", "l": 1}, {"n": "PT. Unirama Duta Niaga MT - CINANGKA", "l": 1}, {"n": "PT. Unirama Duta Niaga MT - DAAN MOGOT", "l": 1}, {"n": "PT. Unirama Duta Niaga MT - JABABEKA", "l": 1}, {"n": "PT. Unirama Duta Niaga MT - JATIBENING", "l": 1}, {"n": "PT. Unirama Duta Niaga MT - SUNTER", "l": 1}, {"n": "PT. United Family Food - ONLINE STORE (Blibli)", "l": 0}, {"n": "PT. United Family Food - ONLINE STORE (Lazada)", "l": 0}, {"n": "PT. United Family Food - ONLINE STORE (Shopee)", "l": 0}, {"n": "PT. United Family Food - ONLINE STORE (TikTok)", "l": 0}, {"n": "PT. United Family Food - ONLINE STORE (Tokopedia)", "l": 0}, {"n": "PT. Wilrika Citra Mandiri - KOTABUMI", "l": 2}, {"n": "PT. Wilrika Citra Mandiri - LAMPUNG", "l": 2}, {"n": "PT. Wilrika Citra Mandiri - METRO", "l": 2}, {"n": "PT. Wilrika Citra Mandiri - TULANGBAWANG", "l": 2}, {"n": "PT. Wira Tunas Kencana - JAYAPURA", "l": 23}, {"n": "PT. Yes Miracle Victory - TARAKAN", "l": 18}, {"n": "Rony Gunawan - SURABAYA", "l": 3}, {"n": "UD. Prima Jaya Mandiri - MEULABOH", "l": 13}];
+const GAS_URL="https://script.google.com/macros/s/AKfycbw8ECLtP2fqRhESRbOkUoH7daqxAfIkZ5XJQ7xezPYrpuC1AC98wuHBml8HA-VyTNyQ/exec";
+let role="sopir";
+let map=null, marker=null, routeLine=null, trackTimer=null, trackingId=null;
+let gpsWatch=null, simTimer=null;
+
+/* ---------- store (Firebase RTDB) ---------- */
+const ME_KEY="lacakArmadaSopirId";
+let myId=localStorage.getItem(ME_KEY);
+if(!myId){myId="sopir_"+Math.random().toString(36).slice(2,10);localStorage.setItem(ME_KEY,myId);}
+const DB_PATH="pengiriman";       // node utama di RTDB
+let STATE={};                      // cache lokal {id:obj}, di-sync realtime
+let fbReady=false;
+
+function load(){
+  // kembalikan array, urut terbaru dulu
+  return Object.values(STATE).sort((a,b)=>(b.ts||0)-(a.ts||0));
+}
+// tulis seluruh objek pengiriman ke Firebase
+function putRemote(o){ if(window.FB) window.FB.set(window.FB.ref(DB_PATH+"/"+o.id), o); }
+// update sebagian field
+function patchRemote(id,partial){ if(window.FB) window.FB.update(window.FB.ref(DB_PATH+"/"+id), partial); }
+
+/* ---------- jembatan Google Sheets + Drive (Apps Script) ---------- */
+function gasAktif(){ return typeof GAS_URL==="string" && GAS_URL.indexOf("http")===0; }
+
+// kirim satu baris report ke Google Sheets (fire-and-forget, dengan retry ringan)
+async function kirimReport(o,tahap,keterangan){
+  if(!gasAktif())return;
+  const payload={action:"report",tahap,keterangan,
+    id:o.id,nama:o.nama,eksp:o.eksp,hp:o.hp,plat:o.plat,jenis:o.jenis,
+    tujuan:o.tujuan,noSJ:o.noSJ,leadtime:o.leadtime,eta:o.eta,status:o.status};
+  for(let i=0;i<2;i++){
+    try{
+      await fetch(GAS_URL,{method:"POST",mode:"no-cors",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});
+      return;
+    }catch(e){ await new Promise(r=>setTimeout(r,1500)); }
+  }
+}
+
+// kirim foto (base64) ke Drive lewat Apps Script (fire-and-forget, no-cors).
+// Tidak bisa baca URL balasan karena no-cors, jadi foto utama tetap disimpan di Firebase.
+async function uploadFotoDrive(o,field,dataUrl){
+  if(!gasAktif())return null;
+  const payload={action:"photo",dataUrl,namaFile:`${field}_${o.plat}_${o.id}`,
+    plat:o.plat,tahap:field};
+  try{
+    await fetch(GAS_URL,{method:"POST",mode:"no-cors",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});
+  }catch(e){}
+  return null; // selalu null: foto utama disimpan di Firebase oleh pemanggil
+}
+
+// mulai listener realtime
+let resumeChecked=false;
+function startSync(){
+  if(!window.FB){return}
+  fbReady=true;
+  window.FB.onValue(window.FB.ref(DB_PATH), snap=>{
+    STATE = snap.val() || {};
+    // normalisasi agar field array aman
+    Object.values(STATE).forEach(o=>{
+      if(!Array.isArray(o.trail)) o.trail = o.trail?Object.values(o.trail):[];
+      if(!Array.isArray(o.log))   o.log   = o.log?Object.values(o.log):[];
+      if(o.pos===undefined) o.pos=null;
+    });
+    autoResumeGps();
+    render();
+  });
+}
+// nyalakan GPS otomatis untuk pengiriman 'jalan' milik perangkat ini
+function autoResumeGps(){
+  const mine=Object.values(STATE).find(o=>o.ownerId===myId && o.status==="jalan");
+  if(mine && trackingId!==mine.id){
+    mine._gap=true;           // tandai ada kemungkinan jeda saat resume
+    startGps(mine.id);
+    if(!resumeChecked){toast("Melanjutkan rekam GPS pengiriman aktif Anda.");resumeChecked=true;}
+  }
+}
+if(window.FB&&window.FB.ready){ startSync(); }
+else { window.addEventListener("fb-ready", startSync); }
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function now(){return new Date().toLocaleString("id-ID",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}
+
+/* ---------- lead time & autocomplete tujuan ---------- */
+let selectedLead=null;   // lead time hari untuk tujuan terpilih
+function cariLead(nama){
+  const hit=LEADTIME.find(x=>x.n.toLowerCase()===String(nama).trim().toLowerCase());
+  return hit?hit.l:null;
+}
+function tglPlus(hari){
+  const d=new Date();d.setDate(d.getDate()+Number(hari));
+  return d.toLocaleDateString("id-ID",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
+}
+function suggestTujuan(q){
+  const box=document.getElementById("tujuan-list");
+  q=String(q||"").trim().toLowerCase();
+  // perbarui info lead time bila cocok persis
+  showLeadInfo(document.getElementById("f-tujuan").value);
+  if(!q){box.style.display="none";return}
+  const hasil=LEADTIME.filter(x=>x.n.toLowerCase().includes(q)).slice(0,40);
+  if(!hasil.length){box.style.display="none";return}
+  box.innerHTML=hasil.map(x=>`
+    <div style="padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:8px"
+      onmousedown="pilihTujuan('${x.n.replace(/'/g,"\\'")}')">
+      <span>${x.n}</span>
+      <span style="color:#0a5c47;font-weight:700;white-space:nowrap">${x.l} hari</span>
+    </div>`).join("");
+  box.style.display="block";
+}
+function pilihTujuan(nama){
+  document.getElementById("f-tujuan").value=nama;
+  document.getElementById("tujuan-list").style.display="none";
+  showLeadInfo(nama);
+}
+function showLeadInfo(nama){
+  const info=document.getElementById("leadtime-info");
+  const l=cariLead(nama);
+  selectedLead=l;
+  if(l!=null){
+    info.style.display="block";
+    info.innerHTML=`🎯 Target lead time: <b>${l} hari</b> &nbsp;·&nbsp; Estimasi tiba: <b>${tglPlus(l)}</b>`;
+  }else{
+    info.style.display="none";
+  }
+}
+// tutup dropdown saat klik di luar
+document.addEventListener("click",e=>{
+  if(!e.target.closest("#f-tujuan")&&!e.target.closest("#tujuan-list")){
+    const b=document.getElementById("tujuan-list");if(b)b.style.display="none";
+  }
+});
+
+const STATUS={
+  jalan:{t:"Dalam Perjalanan",c:"p-jalan"},
+  tiba:{t:"Tiba di Gudang",c:"p-tiba"},
+  bongkar:{t:"Menunggu Dibongkar",c:"p-bongkar"},
+  selesai:{t:"Selesai",c:"p-selesai"}
+};
+
+function toast(m){const t=document.getElementById("toast");t.textContent=m;
+  t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2600)}
+
+/* ---------- role & login admin ---------- */
+// ===== LOGIN ADMIN (Tingkat 2: hash SHA-256, disimpan di Firebase) =====
+const AUTH_PATH="config/adminAuth";   // node penyimpan hash di Firebase
+const SALT="unifam::v1::";            // salt agar hash lebih tahan tebakan
+// default bila belum ada di Firebase (akan diganti & disimpan saat pertama login)
+const DEFAULT_ID="admin", DEFAULT_PW="unifam2026";
+let adminAuthed = (sessionStorage.getItem("unifamAdminAuthed")==="1");
+
+async function sha256(txt){
+  const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(SALT+txt));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+// ambil kredensial tersimpan dari Firebase; jika belum ada, buat dari default
+async function getAuth(){
+  if(!window.FB) return null;
+  try{
+    const snap=await window.FB.get(window.FB.ref(AUTH_PATH));
+    if(snap && snap.exists && snap.exists()) return snap.val();
+    if(snap && snap.val && snap.val()) return snap.val();
+  }catch(e){}
+  // belum ada → buat default
+  const seed={id:DEFAULT_ID, pwHash:await sha256(DEFAULT_PW)};
+  try{ await window.FB.set(window.FB.ref(AUTH_PATH), seed); }catch(e){}
+  return seed;
+}
+
+function setRole(r){
+  role=r;
+  document.getElementById("rb-sopir").classList.toggle("on",r==="sopir");
+  document.getElementById("rb-admin").classList.toggle("on",r==="admin");
+  document.getElementById("v-sopir").classList.toggle("on",r==="sopir");
+  document.getElementById("v-admin").classList.toggle("on",r==="admin");
+  if(r==="admin") applyAdminGate();
+  render();
+}
+function applyAdminGate(){
+  const login=document.getElementById("admin-login");
+  const dash=document.getElementById("admin-dash");
+  if(!login||!dash)return;
+  login.style.display = adminAuthed ? "none" : "block";
+  dash.style.display  = adminAuthed ? "block" : "none";
+}
+async function adminLogin(){
+  const id=document.getElementById("adm-id").value.trim();
+  const pw=document.getElementById("adm-pw").value;
+  if(!id||!pw){toast("Isi ID dan password.");return}
+  const cred=await getAuth();
+  if(!cred){toast("Koneksi server belum siap, coba lagi.");return}
+  const pwHash=await sha256(pw);
+  if(id===cred.id && pwHash===cred.pwHash){
+    adminAuthed=true;
+    sessionStorage.setItem("unifamAdminAuthed","1");
+    document.getElementById("adm-pw").value="";
+    applyAdminGate();render();
+    toast("Login berhasil.");
+  }else{
+    toast("ID atau password salah.");
+  }
+}
+function adminLogout(){
+  adminAuthed=false;
+  sessionStorage.removeItem("unifamAdminAuthed");
+  closeTrack();
+  applyAdminGate();
+  toast("Anda telah keluar.");
+}
+function toggleGantiPw(){
+  const b=document.getElementById("ganti-pw-box");
+  if(b) b.style.display = b.style.display==="none" ? "block" : "none";
+}
+
+// ganti ID / password admin
+async function gantiPassword(){
+  const cur=document.getElementById("pw-cur").value;
+  const nid=document.getElementById("pw-newid").value.trim();
+  const np1=document.getElementById("pw-new1").value;
+  const np2=document.getElementById("pw-new2").value;
+  const cred=await getAuth();
+  if(!cred){toast("Koneksi belum siap.");return}
+  if(await sha256(cur)!==cred.pwHash){toast("Password lama salah.");return}
+  if(np1.length<6){toast("Password baru minimal 6 karakter.");return}
+  if(np1!==np2){toast("Konfirmasi password tidak cocok.");return}
+  const baru={id:nid||cred.id, pwHash:await sha256(np1)};
+  try{
+    await window.FB.set(window.FB.ref(AUTH_PATH), baru);
+    ["pw-cur","pw-newid","pw-new1","pw-new2"].forEach(i=>document.getElementById(i).value="");
+    toast("ID/Password berhasil diperbarui.");
+  }catch(e){ toast("Gagal menyimpan. Coba lagi."); }
+}
+
+/* ---------- DATA DUMMY (untuk uji dashboard) ---------- */
+function hariLalu(n){ return Date.now() - n*86400000; }
+function tsToLabel(ts){ return new Date(ts).toLocaleString("id-ID",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); }
+function mkDummy(o){
+  const ts=o.ts;
+  const lead=o.leadtime;
+  const eta=(()=>{const d=new Date(ts);d.setDate(d.getDate()+lead);return d.toLocaleDateString("id-ID",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});})();
+  const base={id:"DUMMY_"+Math.random().toString(36).slice(2,9),ownerId:"dummy",
+    eksp:o.eksp||"PT Contoh Logistik",hp:"0800000000",jenis:o.jenis||"CDD",
+    noSJ:"SJPA-"+Math.floor(Math.random()*900000+100000),
+    leadtime:lead,eta,dibuat:tsToLabel(ts),ts,
+    pos:{lat:-6.9+Math.random()*0.2,lng:107.6+Math.random()*0.2},trail:[],
+    fotoTiba:null,fotoBongkar:null,
+    log:[{t:tsToLabel(ts),e:"[DUMMY] Pengiriman dimulai"}]};
+  return Object.assign(base,o);
+}
+function isiDummy(){
+  if(!fbReady){toast("Koneksi belum siap.");return}
+  if(!confirm("Tambahkan beberapa data dummy untuk menguji dashboard? Bisa dihapus lagi nanti."))return;
+  const now=Date.now();
+  const list=[
+    // === target tiba HARI INI (lead bikin target = hari ini) ===
+    // on-time: kirim kemarin, lead 1 -> target hari ini, tiba hari ini pagi
+    mkDummy({nama:"Budi (Bandung)",plat:"D 1234 AB",tujuan:"CV. Anugerah Jaya Perkasa - SUBANG",
+      leadtime:1,ts:hariLalu(1),status:"selesai",tibaTs:now-3*3600000,tibaAt:tsToLabel(now-3*3600000),bongkarAt:tsToLabel(now-2*3600000)}),
+    // miss: kirim 3 hari lalu, lead 1 -> target 2 hari lalu, tiba hari ini (telat)
+    mkDummy({nama:"Asep (Semarang)",plat:"H 5678 CD",tujuan:"CV. Gemilang Abadi - SEMARANG",
+      leadtime:2,ts:hariLalu(3),status:"selesai",tibaTs:now-1*3600000,tibaAt:tsToLabel(now-1*3600000),bongkarAt:tsToLabel(now)}),
+    // on-time minggu ini: kirim 2 hari lalu, lead 2 -> target hari ini, tiba tepat
+    mkDummy({nama:"Cecep (Demak)",plat:"H 9012 EF",tujuan:"CV. Gemilang Abadi - DEMAK",
+      leadtime:2,ts:hariLalu(2),status:"selesai",tibaTs:now-5*3600000,tibaAt:tsToLabel(now-5*3600000),bongkarAt:tsToLabel(now-4*3600000)}),
+    // === TERLAMBAT (belum tiba, target sudah lewat) ===
+    mkDummy({nama:"Dadang (Cilacap)",plat:"R 3456 GH",tujuan:"CV. Gemilang Abadi - CILACAP",
+      leadtime:2,ts:hariLalu(4),status:"jalan"}),
+    mkDummy({nama:"Eko (Langsa)",plat:"BL 7788 IJ",tujuan:"CV. Ananda Berkah Sejahtera - LANGSA",
+      leadtime:13,ts:hariLalu(20),status:"jalan"}),
+    // === PENDING (sedang jalan, target masih di depan) ===
+    mkDummy({nama:"Feri (Subang)",plat:"D 2233 KL",tujuan:"CV. Anugerah Jaya Perkasa - SUBANG",
+      leadtime:1,ts:now,status:"jalan"}),
+    // === minggu lalu, untuk akumulasi mingguan/bulanan ===
+    mkDummy({nama:"Gun (Semarang)",plat:"H 4455 MN",tujuan:"CV. Gemilang Abadi - SEMARANG TIMUR",
+      leadtime:2,ts:hariLalu(6),status:"selesai",tibaTs:hariLalu(4),tibaAt:tsToLabel(hariLalu(4)),bongkarAt:tsToLabel(hariLalu(4))}),
+    mkDummy({nama:"Hadi (Subang)",plat:"D 6677 OP",tujuan:"CV. Anugerah Jaya Perkasa - SUBANG",
+      leadtime:1,ts:hariLalu(5),status:"selesai",tibaTs:hariLalu(3),tibaAt:tsToLabel(hariLalu(3)),bongkarAt:tsToLabel(hariLalu(3))})
+  ];
+  list.forEach(o=>putRemote(o));
+  toast(list.length+" data dummy ditambahkan.");
+}
+function hapusDummy(){
+  if(!confirm("Hapus semua data dummy?"))return;
+  const dummies=Object.values(STATE).filter(o=>o.ownerId==="dummy"||String(o.id).startsWith("DUMMY_"));
+  if(!dummies.length){toast("Tidak ada data dummy.");return}
+  dummies.forEach(o=>{ if(window.FB) window.FB.remove(window.FB.ref(DB_PATH+"/"+o.id)); });
+  toast(dummies.length+" data dummy dihapus.");
+}
+
+/* ---------- SOPIR: daftar ---------- */
+function daftar(){
+  if(!fbReady){toast("Koneksi server belum siap, coba lagi sebentar.");return}
+  const g=id=>document.getElementById(id).value.trim();
+  const nama=g("f-nama"),eksp=g("f-eksp"),hp=g("f-hp"),plat=g("f-plat").toUpperCase(),
+        jenis=g("f-jenis"),tujuan=g("f-tujuan"),sjNo=g("f-sj");
+  if(!nama||!plat||!tujuan){toast("Lengkapi nama, plat, dan tujuan");return}
+  const noSJ=sjNo?("SJPA-"+sjNo):"";
+  const id=uid();
+  const seed=jakartaSeed();
+  const lead=cariLead(tujuan);
+  const eta=lead!=null?tglPlus(lead):"";
+  const o={id,ownerId:myId,nama,eksp,hp,plat,jenis,tujuan,noSJ,
+    leadtime:lead!=null?lead:"", eta,
+    status:"jalan",dibuat:now(),ts:Date.now(),
+    log:[{t:now(),e:"Sopir mendaftarkan & memulai pengiriman"},
+         {t:now(),e:"Perjalanan dimulai, GPS aktif"}],
+    pos:seed,trail:[seed],fotoTiba:null,fotoBongkar:null};
+  putRemote(o);
+  kirimReport(o,"Daftar/Berangkat","Pengiriman dimulai");
+  ["f-nama","f-eksp","f-hp","f-plat","f-tujuan","f-sj"].forEach(i=>document.getElementById(i).value="");
+  document.getElementById("leadtime-info").style.display="none";
+  selectedLead=null;
+  startGps(id);
+  toast("Pengiriman dimulai. GPS aktif.");
+}
+
+/* ---------- SOPIR: kartu aktif ---------- */
+function renderSopir(){
+  const wrap=document.getElementById("sopir-active");
+  const d=load().filter(o=>o.ownerId===myId && o.status!=="selesai");
+  const rc=document.getElementById("recover-card");
+  if(rc) rc.style.display = d.length ? "none" : "block";
+  if(!d.length){wrap.innerHTML="";return}
+  wrap.innerHTML=`<div class="card"><h2>Pengiriman Aktif Anda</h2>
+    <p class="sub">Hanya pengiriman yang Anda mulai dari perangkat ini.</p>${d.map(sopirCard).join("")}</div>`;
+}
+function sopirCard(o){
+  const s=STATUS[o.status]||{t:o.status||"?",c:"p-selesai"};
+  let acts="";
+  if(o.status==="jalan"){
+    const ready=o.fotoTiba;
+    acts=`<div class="hint"><span class="gps-dot"></span> GPS aktif. Lokasi terkirim ke admin.</div>
+      <div class="step-head">Langkah 1 — Laporan Kedatangan</div>
+      <div class="hint">Setelah sampai di gudang, ambil foto bukti lalu laporkan. Status baru berubah setelah foto & laporan terkirim.</div>
+      ${camBlock(o,"fotoTiba","Foto kedatangan")}
+      <div class="acts"><button class="act" onclick="laporTiba('${o.id}')" ${ready?"":"disabled"}>📨 Laporkan Tiba di Gudang</button></div>`;
+  }
+
+  if(o.status==="bongkar"){
+    const ready=o.fotoBongkar;
+    acts=`<div class="done-note">✓ Kedatangan sudah dilaporkan${o.tibaAt?` (${o.tibaAt})`:""}.</div>
+      <div class="step-head">Langkah 2 — Laporan Bongkar</div>
+      <div class="hint">Setelah barang dibongkar, ambil foto bukti lalu laporkan. Ini mengakhiri tracking & mematikan GPS.</div>
+      ${camBlock(o,"fotoBongkar","Foto bongkar")}
+      <div class="acts"><button class="act danger" onclick="laporBongkar('${o.id}')" ${ready?"":"disabled"}>📨 Laporkan Bongkar & Selesai</button></div>`;
+  }
+  return `<div class="order">
+    <div class="top"><div>
+      <div class="plate">${o.plat}</div>
+      <div class="meta"><b>${o.nama}</b> · ${o.jenis}${o.noSJ?` · ${o.noSJ}`:""}<br>→ ${o.tujuan}${o.leadtime!==""&&o.leadtime!=null?`<br>🎯 Lead time: ${o.leadtime} hari · ETA ${o.eta||"-"}`:""}</div>
+    </div><span class="pill ${s.c}">${s.t}</span></div>
+    ${acts}</div>`;
+}
+function camBlock(o,field,label){
+  const inputId="cam-"+o.id+"-"+field;
+  return `<label>${label}</label>
+    <input id="${inputId}" type="file" accept="image/*" capture="environment"
+      style="display:none" onchange="fotoUp(event,'${o.id}','${field}')">
+    <button class="act ghost" style="margin-top:0" onclick="document.getElementById('${inputId}').click()">
+      ${o[field]?"🔄 Ambil Ulang":"📷 Buka Kamera"}</button>
+    ${o[field]?`<img class="photo-prev on" src="${o[field]}">`:""}`;
+}
+
+/* ---------- SOPIR: actions ---------- */
+function upd(id,fn){const o=STATE[id];if(!o)return;fn(o);putRemote(o)}
+// penjaga: hanya pemilik (sopir yang memulai) yang boleh meng-update
+function updMine(id,fn){
+  const o=STATE[id];
+  if(!o)return;
+  if(o.ownerId!==myId){toast("Anda tidak berhak mengubah pengiriman ini.");return}
+  fn(o);putRemote(o);
+}
+
+function laporTiba(id){
+  const o0=STATE[id];
+  if(!o0||!o0.fotoTiba){toast("Ambil foto bukti tiba dulu sebelum melapor.");return}
+  stopGps();
+  const t=now();
+  updMine(id,o=>{o.status="bongkar";o.tibaAt=t;o.tibaTs=Date.now();
+    o.log.push({t,e:"📨 Laporan TIBA DI GUDANG dikirim (foto bukti terlampir), GPS dihentikan"})});
+  const o=STATE[id]; if(o) kirimReport(o,"Tiba di Gudang","Sopir tiba, foto: "+(o.fotoTiba||"-"));
+  toast("Laporan tiba terkirim ke admin.");
+}
+function laporBongkar(id){
+  const o0=STATE[id];
+  if(!o0||!o0.fotoBongkar){toast("Ambil foto bukti bongkar dulu sebelum melapor.");return}
+  const t=now();
+  updMine(id,o=>{o.status="selesai";o.bongkarAt=t;
+    o.log.push({t,e:"📨 Laporan BONGKAR dikirim (foto bukti bongkar terlampir), tracking diakhiri"})});
+  const o=STATE[id]; if(o) kirimReport(o,"Bongkar Selesai","Bongkar selesai, foto: "+(o.fotoBongkar||"-"));
+  toast("Laporan bongkar terkirim. Pengiriman selesai.");
+}
+function fotoUp(ev,id,field){
+  const f=ev.target.files[0];if(!f)return;
+  const o=STATE[id];
+  if(!o||o.ownerId!==myId){toast("Anda tidak berhak mengubah pengiriman ini.");return}
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=async()=>{
+      const max=1000;
+      let {width:w,height:h}=img;
+      if(w>h&&w>max){h=Math.round(h*max/w);w=max;}
+      else if(h>max){w=Math.round(w*max/h);h=max;}
+      const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+      cv.getContext("2d").drawImage(img,0,0,w,h);
+      const small=cv.toDataURL("image/jpeg",0.7);
+      // simpan foto di Firebase (utama) & kirim salinan arsip ke Drive
+      patchRemote(id,{[field]:small});
+      uploadFotoDrive(o,field,small);   // arsip ke Drive (fire-and-forget)
+      toast("Foto tersimpan.");
+    };
+    img.src=r.result;
+  };
+  r.readAsDataURL(f);
+}
+
+/* ---------- GPS (real + fallback simulasi) ---------- */
+function jakartaSeed(){return{lat:-6.1751+ (Math.random()-.5)*.02,lng:106.8650+(Math.random()-.5)*.02}}
+function startGps(id){
+  trackingId=id;
+  if(navigator.geolocation){
+    gpsWatch=navigator.geolocation.watchPosition(
+      p=>pushPos(id,p.coords.latitude,p.coords.longitude),
+      ()=>startSim(id),{enableHighAccuracy:true,maximumAge:5000});
+  } else startSim(id);
+}
+function startSim(id){
+  if(simTimer)return;
+  simTimer=setInterval(()=>{
+    const o=STATE[id];
+    if(!o||o.status!=="jalan"){return}
+    const last=o.pos||jakartaSeed();
+    pushPos(id,last.lat+0.0012,last.lng+0.0009);
+  },3000);
+}
+function distKm(a,b){
+  if(!a||!b)return 0;
+  const R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180;
+  const x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+function pushPos(id,lat,lng){
+  const o=STATE[id];if(!o)return;
+  if(!Array.isArray(o.trail))o.trail=[];
+  const prev=o.trail[o.trail.length-1];
+  const pt={lat,lng,t:Date.now()};
+  // jika titik baru melompat jauh dari titik terakhir (>2km), tandai jeda
+  if((o._gap || (prev && distKm(prev,pt)>2)) && prev){
+    pt.gap=true;
+    o.log.push({t:now(),e:"⚠ Rekaman GPS terputus lalu dilanjutkan (ada bagian rute tak terekam)"});
+  }
+  o._gap=false;
+  o.pos={lat,lng};
+  o.trail.push(pt);if(o.trail.length>200)o.trail.shift();
+  patchRemote(id,{pos:o.pos,trail:o.trail,log:o.log});
+  if(trackingId===id&&map&&marker){
+    marker.setLatLng([lat,lng]);
+    if(routeLine)routeLine.setLatLngs(o.trail.map(p=>[p.lat,p.lng]));
+    map.panTo([lat,lng],{animate:true});
+  }
+}
+function stopGps(){
+  if(gpsWatch!=null){navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null}
+  if(simTimer){clearInterval(simTimer);simTimer=null}
+}
+
+/* ---------- ADMIN ---------- */
+function renderAdmin(){
+  if(!adminAuthed){applyAdminGate();return}   // jangan render data sebelum login
+  const d=load();
+  document.getElementById("s-wait").textContent=d.filter(o=>o.status==="jalan").length;
+  document.getElementById("s-jalan").textContent=d.filter(o=>["tiba","bongkar"].includes(o.status)).length;
+  document.getElementById("s-selesai").textContent=d.filter(o=>o.status==="selesai").length;
+  const list=document.getElementById("admin-list");
+  if(!d.length){list.innerHTML=`<div class="empty"><span class="big">📭</span>Belum ada pendaftaran.</div>`;}
+  else list.innerHTML=d.map(adminCard).join("");
+  renderLate(d);
+  renderAccuracy(d);
+}
+
+/* ---------- helper ketepatan waktu ---------- */
+// target tiba = tanggal mulai + lead time (hari kalender)
+function targetTibaTs(o){
+  if(o.leadtime===""||o.leadtime==null||!o.ts)return null;
+  const t=new Date(o.ts);t.setDate(t.getDate()+Number(o.leadtime));t.setHours(23,59,59,999);
+  return t.getTime();
+}
+// sudah konfirmasi tiba? (status tiba/bongkar/selesai berarti sudah tiba di gudang)
+function sudahTiba(o){ return ["tiba","bongkar","selesai"].includes(o.status); }
+// terlambat = belum tiba & target sudah lewat
+function isTerlambat(o){
+  const tgt=targetTibaTs(o);
+  return tgt!=null && !sudahTiba(o) && Date.now()>tgt;
+}
+
+/* ---------- tab admin ---------- */
+function setAdminTab(t){
+  ["mon","late","acc"].forEach(k=>{
+    const pane=document.getElementById("pane-"+k);
+    const tab=document.getElementById("tab-"+k);
+    if(pane)pane.style.display = (k===t)?"block":"none";
+    if(tab)tab.classList.toggle("on",k===t);
+  });
+  if(t!=="mon"){closeTrack();}
+  renderAdmin();
+}
+
+/* ---------- PANEL TERLAMBAT ---------- */
+function renderLate(d){
+  const late=d.filter(isTerlambat).sort((a,b)=>targetTibaTs(a)-targetTibaTs(b));
+  const badge=document.getElementById("late-badge");
+  if(badge){ badge.textContent=late.length; badge.style.display=late.length?"inline-block":"none"; }
+  const box=document.getElementById("late-list");
+  if(!box)return;
+  if(!late.length){box.innerHTML=`<div class="empty"><span class="big">✅</span>Tidak ada pengiriman yang terlambat.</div>`;return}
+  box.innerHTML=late.map(o=>{
+    const lewat=Math.floor((Date.now()-targetTibaTs(o))/(1000*60*60*24));
+    return `<div class="order">
+      <div class="top"><div>
+        <div class="plate">${o.plat}</div>
+        <div class="meta"><b>${o.nama}</b> · ${o.eksp||"-"}<br>→ ${o.tujuan}<br>
+          🎯 Lead time ${o.leadtime} hari · ETA ${o.eta||"-"}<br>Mulai: ${o.dibuat}</div>
+      </div><span class="pill p-tolak">Telat ${lewat>0?lewat+" hari":"hari ini"}</span></div>
+      <div class="acts">
+        <button class="act" onclick="setAdminTab('mon');setTimeout(()=>openTrack('${o.id}'),200)">🛰 Lacak</button>
+      </div></div>`;
+  }).join("");
+}
+
+/* ---------- DASHBOARD AKURASI ---------- */
+let accRange="day";
+function setAccRange(r){
+  accRange=r;
+  document.querySelectorAll("#acc-seg .segb").forEach(b=>b.classList.remove("on"));
+  event.target.classList.add("on");
+  renderAccuracy(load());
+}
+// awal & akhir periode yang memuat tanggal "now" (untuk hari/minggu/bulan)
+function periodeRange(r){
+  const s=new Date();s.setHours(0,0,0,0);
+  const e=new Date();e.setHours(23,59,59,999);
+  if(r==="week"){const day=(s.getDay()+6)%7;s.setDate(s.getDate()-day);e.setDate(s.getDate()+6);e.setHours(23,59,59,999);}
+  else if(r==="month"){s.setDate(1);e.setMonth(e.getMonth()+1,0);e.setHours(23,59,59,999);}
+  return {start:s.getTime(), end:e.getTime()};
+}
+// status ketepatan satu pengiriman: 'ontime' | 'miss' | 'pending' | null(tak relevan)
+function statusKetepatan(o){
+  const tgt=targetTibaTs(o);
+  if(tgt==null)return null;            // tanpa lead time, tak dihitung
+  if(sudahTiba(o)){
+    const tibaTs=o.tibaTs||null;
+    if(tibaTs==null)return null;       // data lama tanpa timestamp tiba — abaikan
+    return tibaTs<=tgt ? "ontime" : "miss";
+  }
+  // belum tiba
+  return Date.now()>tgt ? "miss" : "pending";
+}
+function renderAccuracy(d){
+  const box=document.getElementById("acc-body");if(!box)return;
+  const {start,end}=periodeRange(accRange);
+  // bucket berdasarkan TARGET tiba yang jatuh dalam periode
+  const rel=d.filter(o=>{
+    const tgt=targetTibaTs(o);
+    return tgt!=null && tgt>=start && tgt<=end;
+  });
+  let ontime=0,miss=0,pending=0;
+  rel.forEach(o=>{
+    const st=statusKetepatan(o);
+    if(st==="ontime")ontime++; else if(st==="miss")miss++; else if(st==="pending")pending++;
+  });
+  const dinilai=ontime+miss;                 // yang sudah bisa dinilai
+  const pct=dinilai?Math.round(ontime/dinilai*100):0;
+  const labelMap={day:"Hari Ini",week:"Minggu Ini",month:"Bulan Ini"};
+  const warna = pct>=90?"var(--ok)":pct>=70?"var(--warn)":"var(--bad)";
+  const r=58,c=2*Math.PI*r,off=c*(1-pct/100);
+  const ring=`<svg class="acc-ring" viewBox="0 0 140 140">
+    <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--line)" stroke-width="14"/>
+    <circle cx="70" cy="70" r="${r}" fill="none" stroke="${warna}" stroke-width="14"
+      stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"
+      transform="rotate(-90 70 70)"/>
+    <text x="70" y="64" text-anchor="middle" font-size="30" font-weight="800" fill="${warna}">${pct}%</text>
+    <text x="70" y="88" text-anchor="middle" font-size="12" fill="var(--muted)">on-time</text>
+  </svg>`;
+  if(!rel.length){
+    box.innerHTML=`<div class="empty"><span class="big">📭</span>Belum ada pengiriman dengan target tiba pada periode ${labelMap[accRange]}.</div>`;
+    return;
+  }
+  box.innerHTML=`
+    <div class="acc-big">${ring}
+      <div style="color:var(--muted);font-size:13px">Periode: <b>${labelMap[accRange]}</b> · berdasarkan target tiba</div>
+      ${pending?`<div style="color:var(--warn);font-size:12px;margin-top:4px">${pending} pengiriman belum jatuh tempo (belum dihitung)</div>`:""}
+    </div>
+    <div class="acc-stat">
+      <div class="box"><div class="n">${dinilai}</div><div class="l">Sudah Dinilai</div></div>
+      <div class="box"><div class="n" style="color:var(--ok)">${ontime}</div><div class="l">On-Time</div></div>
+      <div class="box"><div class="n" style="color:var(--bad)">${miss}</div><div class="l">Miss</div></div>
+    </div>
+    <p class="sub" style="margin-top:14px;margin-bottom:0">Catatan: pengiriman yang target tibanya hari ini baru final setelah hari berakhir (menunggu semua konfirmasi).</p>`;
+}
+
+function badgeKetepatan(o){
+  const tgt=targetTibaTs(o);
+  if(tgt==null)return "";
+  if(!sudahTiba(o)){
+    // masih jalan — tandai bila sudah lewat target
+    if(Date.now()>tgt){
+      const lewat=Math.floor((Date.now()-tgt)/(1000*60*60*24));
+      return `<br><span style="background:#fbe6cf;color:#8a5a12;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px">⏰ Melewati target ${lewat>0?lewat+" hari":"hari ini"}</span>`;
+    }
+    return "";
+  }
+  // sudah tiba — bandingkan waktu tiba dengan target
+  const tibaTs=o.tibaTs||Date.now();
+  return tibaTs>tgt
+    ? `<br><span style="background:#f6d8d0;color:#8a2e1c;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px">🔴 Telat dari target</span>`
+    : `<br><span style="background:#cdeae0;color:#0a5c47;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px">🟢 On-time</span>`;
+}
+function adminCard(o){
+  const s=STATUS[o.status]||{t:o.status||"?",c:"p-selesai"};
+  let acts="";
+  if(o.status==="jalan") acts=`<div class="acts">
+    <button class="act" onclick="openTrack('${o.id}')">🛰 Lacak Live</button></div>`;
+  const dl=(f,n)=>o[f]?`<a class="dl" href="${o[f]}" download="${n}-${o.plat}.jpg">⬇ Unduh ${n}</a>`:"";
+  if(["tiba","bongkar"].includes(o.status)){
+    acts=`<div class="acts" style="flex-direction:column;gap:4px">
+      ${dl("fotoTiba","tiba")}</div>`;
+  }
+  if(o.status==="selesai"){
+    acts=`<div class="acts" style="flex-direction:column;gap:4px">
+      ${dl("fotoTiba","tiba")}${dl("fotoBongkar","bongkar")}</div>`;
+  }
+  const tl=o.log.map(l=>`<li><b>${l.t}</b> — ${l.e}</li>`).join("");
+  return `<div class="order">
+    <div class="top"><div>
+      <div class="plate">${o.plat}</div>
+      <div class="meta"><b>${o.nama}</b> · ${o.eksp||"-"} · ${o.jenis}<br>
+        → ${o.tujuan}${o.noSJ?`<br>${o.noSJ}`:""}<br>
+        ${o.leadtime!==""&&o.leadtime!=null?`🎯 Lead time: <b>${o.leadtime} hari</b> · ETA ${o.eta||"-"}<br>`:""}
+        ${o.hp?`HP: ${o.hp} · `:""}Mulai: ${o.dibuat}
+        ${o.ownerId?`<br><span style="opacity:.7">ID: ${o.ownerId}</span>`:""}
+        ${o.tibaAt?`<br>📍 Tiba dilaporkan: ${o.tibaAt}`:""}
+        ${o.bongkarAt?`<br>📦 Bongkar dilaporkan: ${o.bongkarAt}`:""}
+        ${badgeKetepatan(o)}</div>
+    </div><span class="pill ${s.c}">${s.t}</span></div>
+    ${acts}
+    <div class="divider"></div>
+    <ul class="timeline">${tl}</ul>
+  </div>`;
+}
+/* ---------- ADMIN: peta ---------- */
+let trailLayers=[];
+function drawTrail(trail){
+  trailLayers.forEach(l=>map.removeLayer(l));trailLayers=[];
+  if(!Array.isArray(trail)||trail.length<2)return;
+  for(let i=1;i<trail.length;i++){
+    const a=trail[i-1],b=trail[i];
+    const seg=L.polyline([[a.lat,a.lng],[b.lat,b.lng]],
+      b.gap?{color:"#b8472e",weight:3,opacity:.8,dashArray:"6,7"}
+           :{color:"#0e7a5f",weight:4,opacity:.75}).addTo(map);
+    trailLayers.push(seg);
+  }
+}
+function openTrack(id){
+  const o=STATE[id];if(!o||!o.pos)return toast("Lokasi belum tersedia");
+  trackingId=id;
+  document.getElementById("track-section").classList.add("on");
+  document.getElementById("track-label").innerHTML=`<span class="gps-dot"></span> ${o.plat} — ${o.nama} → ${o.tujuan}<br><span style="font-size:11px;color:var(--muted)">━ hijau: terekam &nbsp; ┄ merah: rute terputus (HP mati/offline)</span>`;
+  document.getElementById("track-section").scrollIntoView({behavior:"smooth"});
+  // tunggu Leaflet siap (CDN bisa lambat), retry sampai ~8 detik
+  let tries=0;
+  (function waitLeaflet(){
+    if(typeof L!=="undefined"){ initPeta(o); return; }
+    if(window.LEAFLET_FAILED || tries>40){ toast("Komponen peta gagal dimuat. Cek koneksi internet."); return; }
+    tries++; setTimeout(waitLeaflet,200);
+  })();
+  if(trackTimer)clearInterval(trackTimer);
+  trackTimer=setInterval(()=>{
+    const cur=STATE[trackingId];
+    if(!cur){closeTrack();return}
+    if(cur.pos&&marker){marker.setLatLng([cur.pos.lat,cur.pos.lng]);drawTrail(cur.trail);}
+    if(cur.status!=="jalan"){toast("Sopir telah tiba. Tracking berhenti.");closeTrack();renderAdmin();}
+  },2000);
+}
+function initPeta(o){
+  setTimeout(()=>{
+    if(!map){
+      map=L.map("map").setView([o.pos.lat,o.pos.lng],14);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {attribution:"© OpenStreetMap",maxZoom:19,crossOrigin:true}).addTo(map);
+    }
+    if(marker)map.removeLayer(marker);
+    const ic=L.divIcon({className:"",html:`<div style="font-size:30px;line-height:1;transform:translate(-3px,-6px)">🚚</div>`,iconSize:[30,30]});
+    marker=L.marker([o.pos.lat,o.pos.lng],{icon:ic}).addTo(map);
+    drawTrail(o.trail);
+    map.setView([o.pos.lat,o.pos.lng],14);
+    map.invalidateSize();
+    setTimeout(()=>map.invalidateSize(),300);
+    setTimeout(()=>map.invalidateSize(),800);
+    setTimeout(()=>map.invalidateSize(),1600);
+  },200);
+}
+function closeTrack(){
+  if(trackTimer){clearInterval(trackTimer);trackTimer=null}
+  trailLayers.forEach(l=>map&&map.removeLayer(l));trailLayers=[];
+  trackingId=null;
+  document.getElementById("track-section").classList.remove("on");
+}
+
+function resetDemo(){
+  if(!confirm("Hapus SEMUA data pengiriman di server? Tindakan ini tidak bisa dibatalkan."))return;
+  stopGps();closeTrack();
+  if(window.FB) window.FB.remove(window.FB.ref(DB_PATH));
+  toast("Semua data dibersihkan.");
+}
+
+function recover(){
+  if(!fbReady){toast("Koneksi server belum siap.");return}
+  const hp=document.getElementById("r-hp").value.trim();
+  const plat=document.getElementById("r-plat").value.trim().toUpperCase();
+  if(!hp||!plat){toast("Isi No. HP dan Plat Nomor.");return}
+  const match=Object.values(STATE).find(o=>
+    o.status!=="selesai" && (o.hp||"").trim()===hp && (o.plat||"").toUpperCase()===plat);
+  if(!match){toast("Pengiriman aktif tidak ditemukan. Cek HP & plat.");return}
+  patchRemote(match.id,{ownerId:myId});
+  match.ownerId=myId;
+  document.getElementById("r-hp").value="";
+  document.getElementById("r-plat").value="";
+  if(match.status==="jalan"){match._gap=true;startGps(match.id);}
+  toast("Pengiriman ditemukan & dipindahkan ke perangkat ini.");
+  render();
+}
+
+function gantiId(){
+  if(!confirm("Ganti identitas perangkat? Pengiriman yang Anda mulai sebelumnya tidak akan tampil lagi di perangkat ini (tetap tercatat di admin)."))return;
+  myId="sopir_"+Math.random().toString(36).slice(2,10);
+  localStorage.setItem(ME_KEY,myId);
+  toast("Identitas perangkat diperbarui.");
+  render();
+}
+
+/* ---------- render ---------- */
+function render(){
+  const lbl=document.getElementById("my-id-label");if(lbl)lbl.textContent=myId;
+  if(role==="sopir")renderSopir();
+  else renderAdmin();
+}
+// render awal (data akan masuk lewat listener realtime startSync)
+render();
+</script>
+
+
+</body></html>
