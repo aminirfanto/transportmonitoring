@@ -134,6 +134,25 @@
   .p-tolak{background:#f6d8d0;color:#8a2e1c}
   .empty{text-align:center;color:var(--muted);padding:34px 14px;font-size:14px}
   .empty .big{font-size:34px;display:block;margin-bottom:8px;opacity:.6}
+  .filterbar{margin:2px 0 14px}
+  .searchwrap{position:relative;margin-bottom:10px}
+  .searchwrap input{padding-left:38px;padding-right:36px}
+  .searchwrap .si{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.5;pointer-events:none}
+  .searchwrap .sx{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;font-size:15px;color:var(--muted);width:auto;min-width:0;padding:6px;margin:0;line-height:1}
+  .fchips{display:flex;gap:6px;flex-wrap:wrap}
+  .fchip{border:1px solid var(--line);background:#fff;color:var(--navy);font-weight:600;font-size:12.5px;padding:7px 11px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin:0;width:auto;min-width:0}
+  .fchip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .fchip.late.on{background:var(--bad);border-color:var(--bad)}
+  .fchip .cnt{background:rgba(41,51,123,.1);border-radius:999px;padding:1px 7px;font-size:11px;font-weight:800}
+  .fchip.on .cnt{background:rgba(255,255,255,.25)}
+  .fcount{font-size:12px;color:var(--muted);margin:11px 2px 0}
+  .adm-tag{background:#e7e9f5;color:#3a3f78;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:700}
+  .modal-bg{position:fixed;inset:0;background:rgba(20,24,55,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:18px}
+  .modal-box{background:#fff;border-radius:14px;padding:20px;max-width:430px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.3)}
+  .modal-box h2{margin:0 0 4px;font-size:17px}
+  .modal-box .acts{display:flex;gap:10px}
+  .modal-box .acts button{flex:1;margin:0}
+  .warn-box{background:#fbe6cf;color:#8a5a12;border-radius:9px;padding:10px 12px;font-size:12.5px;margin:12px 0 4px;line-height:1.45}
   .order{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:11px;background:#fff}
   .order .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
   .order .plate{font-weight:800;font-size:16px;letter-spacing:.5px}
@@ -316,6 +335,15 @@
     <div class="card">
       <h2>Daftar Pengiriman</h2>
       <p class="sub">Pantau armada yang sedang berjalan &amp; riwayat pengiriman.</p>
+      <div class="filterbar">
+        <div class="searchwrap">
+          <span class="si">🔍</span>
+          <input id="mon-search" type="text" placeholder="Cari plat, sopir, ekspedisi, tujuan, No. SJ…" oninput="onMonSearch(this.value)" autocomplete="off">
+          <button id="mon-clear" class="sx" style="display:none" onclick="clearMonSearch()" aria-label="Hapus pencarian">✕</button>
+        </div>
+        <div id="mon-chips" class="fchips"></div>
+        <div id="mon-count" class="fcount"></div>
+      </div>
       <div id="admin-list"></div>
     </div>
     </div><!-- /pane-mon -->
@@ -343,6 +371,23 @@
       </div>
     </div>
     </div><!-- /admin-dash -->
+
+    <!-- MODAL ISI MANUAL (admin backup saat sopir lupa lapor) -->
+    <div id="isi-modal" class="modal-bg" style="display:none">
+      <div class="modal-box">
+        <h2 id="isi-title">Isi Laporan Manual</h2>
+        <p class="sub" id="isi-sub" style="margin-bottom:0">—</p>
+        <div class="warn-box">⚠ Gunakan hanya sebagai cadangan saat sopir lupa/terlewat melapor. Entri ini ditandai <b>“Diisi oleh admin”</b> di Google Sheet.</div>
+        <label id="isi-wlabel">Waktu kejadian sebenarnya</label>
+        <input id="isi-waktu" type="datetime-local">
+        <label>Keterangan tambahan (opsional)</label>
+        <input id="isi-ket" type="text" placeholder="cth: dikonfirmasi via telepon ke sopir" maxlength="80">
+        <div class="acts" style="margin-top:16px">
+          <button class="act ghost" onclick="closeIsiManual()">Batal</button>
+          <button class="act" onclick="simpanIsiManual()">💾 Simpan</button>
+        </div>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -375,10 +420,17 @@ function patchRemote(id,partial){ if(window.FB) window.FB.update(window.FB.ref(D
 /* ---------- jembatan Google Sheets + Drive (Apps Script) ---------- */
 function gasAktif(){ return typeof GAS_URL==="string" && GAS_URL.indexOf("http")===0; }
 
-// kirim satu baris report ke Google Sheets (fire-and-forget, dengan retry ringan)
-async function kirimReport(o,tahap,keterangan){
+// peta tahap -> kunci kolom waktu di Google Sheet (satu baris per pengiriman)
+const TAHAP_KEY={"Daftar/Berangkat":"berangkat","Tiba di Gudang":"tiba","Bongkar Selesai":"bongkar"};
+// kirim/segarkan baris report di Google Sheets (fire-and-forget, dengan retry ringan)
+// opts: {tahapKey, waktuEvent(ms), olehAdmin}
+async function kirimReport(o,tahap,keterangan,opts){
   if(!gasAktif())return;
+  opts=opts||{};
   const payload={action:"report",tahap,keterangan,
+    tahapKey: opts.tahapKey || TAHAP_KEY[tahap] || "berangkat",
+    waktuEvent: opts.waktuEvent || Date.now(),
+    olehAdmin: !!opts.olehAdmin,
     id:o.id,nama:o.nama,eksp:o.eksp,hp:o.hp,plat:o.plat,jenis:o.jenis,
     tujuan:o.tujuan,noSJ:o.noSJ,leadtime:o.leadtime,eta:o.eta,status:o.status};
   for(let i=0;i<2;i++){
@@ -429,6 +481,12 @@ function autoResumeGps(){
     mine._gap=true;           // tandai ada kemungkinan jeda saat resume
     startGps(mine.id);
     if(!resumeChecked){toast("Melanjutkan rekam GPS pengiriman aktif Anda.");resumeChecked=true;}
+  }
+  // auto-stop: pengiriman milik perangkat ini yang sedang direkam tapi sudah tak butuh GPS
+  // (mis. ditutup/diisi admin) -> hentikan perekaman di HP sopir
+  if(trackingId){
+    const cur=STATE[trackingId];
+    if(cur && cur.ownerId===myId && !gpsAktifUntuk(cur.status)){ stopGps(); }
   }
 }
 if(window.FB&&window.FB.ready){ startSync(); }
@@ -661,7 +719,7 @@ function daftar(){
          {t:now(),e:"Perjalanan dimulai, GPS aktif"}],
     pos:seed,trail:[seed],fotoTiba:null,fotoBongkar:null};
   putRemote(o);
-  kirimReport(o,"Daftar/Berangkat","Pengiriman dimulai");
+  kirimReport(o,"Daftar/Berangkat","Pengiriman dimulai",{waktuEvent:o.ts});
   ["f-nama","f-eksp","f-hp","f-plat","f-tujuan","f-sj"].forEach(i=>document.getElementById(i).value="");
   document.getElementById("leadtime-info").style.display="none";
   selectedLead=null;
@@ -732,7 +790,7 @@ function laporTiba(id){
   const t=now();
   updMine(id,o=>{o.status="bongkar";o.tibaAt=t;o.tibaTs=Date.now();
     o.log.push({t,e:"📨 Laporan TIBA DI GUDANG dikirim (foto bukti terlampir), GPS tetap aktif hingga bongkar selesai"})});
-  const o=STATE[id]; if(o) kirimReport(o,"Tiba di Gudang","Sopir tiba, foto: "+(o.fotoTiba||"-"));
+  const o=STATE[id]; if(o) kirimReport(o,"Tiba di Gudang","Sopir lapor tiba (foto terlampir)",{waktuEvent:o.tibaTs});
   toast("Laporan tiba terkirim. GPS tetap aktif sampai bongkar.");
 }
 function laporBongkar(id){
@@ -740,9 +798,9 @@ function laporBongkar(id){
   if(!o0||!o0.fotoBongkar){toast("Ambil foto bukti bongkar dulu sebelum melapor.");return}
   stopGps();
   const t=now();
-  updMine(id,o=>{o.status="selesai";o.bongkarAt=t;
+  updMine(id,o=>{o.status="selesai";o.bongkarAt=t;o.bongkarTs=Date.now();
     o.log.push({t,e:"📨 Laporan BONGKAR dikirim (foto bukti bongkar terlampir), GPS dimatikan & tracking diakhiri"})});
-  const o=STATE[id]; if(o) kirimReport(o,"Bongkar Selesai","Bongkar selesai, foto: "+(o.fotoBongkar||"-"));
+  const o=STATE[id]; if(o) kirimReport(o,"Bongkar Selesai","Sopir lapor bongkar selesai (foto terlampir)",{waktuEvent:o.bongkarTs});
   toast("Laporan bongkar terkirim. Pengiriman selesai.");
 }
 function fotoUp(ev,id,field){
@@ -821,15 +879,132 @@ function stopGps(){
 }
 
 /* ---------- ADMIN ---------- */
+/* ---------- filter & pencarian (tab Monitoring) ---------- */
+let monFilter="all";   // all | jalan | bongkar | selesai | late
+let monSearch="";
+// cocok status sesuai chip yang dipilih
+function cocokStatus(o){
+  if(monFilter==="all")   return true;
+  if(monFilter==="late")  return isTerlambat(o);
+  if(monFilter==="bongkar")return o.status==="tiba"||o.status==="bongkar";
+  return o.status===monFilter;
+}
+// cocok kata kunci di plat/sopir/ekspedisi/tujuan/SJ/HP/jenis (abai spasi & format)
+function cocokCari(o){
+  const q=monSearch.trim().toLowerCase();
+  if(!q)return true;
+  const qn=q.replace(/\s+/g,"");
+  const hay=[o.plat,o.nama,o.eksp,o.tujuan,o.noSJ,o.hp,o.jenis].map(x=>String(x||"").toLowerCase());
+  return hay.some(h=>h.includes(q)) || hay.some(h=>h.replace(/\s+/g,"").includes(qn));
+}
+function setMonFilter(k){ monFilter=k; renderAdmin(); }
+function onMonSearch(v){
+  monSearch=v;
+  const x=document.getElementById("mon-clear"); if(x)x.style.display=v?"block":"none";
+  renderAdmin();
+}
+function clearMonSearch(){
+  monSearch=""; const i=document.getElementById("mon-search"); if(i)i.value="";
+  const x=document.getElementById("mon-clear"); if(x)x.style.display="none";
+  renderAdmin();
+}
+function resetMonFilter(){
+  monFilter="all"; clearMonSearch();
+}
+// bangun chip filter dengan jumlah masing-masing (dari data penuh)
+function renderMonFilter(d){
+  const box=document.getElementById("mon-chips"); if(!box)return;
+  const cnt={
+    all:d.length,
+    jalan:d.filter(o=>o.status==="jalan").length,
+    bongkar:d.filter(o=>["tiba","bongkar"].includes(o.status)).length,
+    selesai:d.filter(o=>o.status==="selesai").length,
+    late:d.filter(isTerlambat).length
+  };
+  const defs=[
+    {k:"all",label:"Semua"},
+    {k:"jalan",label:"Perjalanan"},
+    {k:"bongkar",label:"Bongkar"},
+    {k:"selesai",label:"Selesai"},
+    {k:"late",label:"Terlambat"}
+  ];
+  box.innerHTML=defs.map(f=>
+    `<button class="fchip${f.k==="late"?" late":""}${monFilter===f.k?" on":""}" onclick="setMonFilter('${f.k}')">${f.label}<span class="cnt">${cnt[f.k]}</span></button>`
+  ).join("");
+}
+
+/* ---------- ADMIN: isi manual (cadangan bila sopir lupa lapor) ---------- */
+let isiId=null, isiTahap=null;
+// format ms -> nilai input datetime-local (waktu lokal)
+function dtLocalValue(ms){
+  const d=ms?new Date(ms):new Date();
+  const p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function openIsiManual(id,tahap){
+  const o=STATE[id]; if(!o)return;
+  isiId=id; isiTahap=tahap;
+  document.getElementById("isi-title").textContent = tahap==="tiba" ? "Isi Manual: Sopir Tiba" : "Isi Manual: Sopir Bongkar / Selesai";
+  document.getElementById("isi-sub").innerHTML=`${o.plat} · <b>${o.nama}</b> → ${o.tujuan}`;
+  document.getElementById("isi-wlabel").textContent = tahap==="tiba" ? "Waktu tiba di gudang (sebenarnya)" : "Waktu bongkar selesai (sebenarnya)";
+  document.getElementById("isi-waktu").value=dtLocalValue(Date.now());
+  document.getElementById("isi-ket").value="";
+  document.getElementById("isi-modal").style.display="flex";
+}
+function closeIsiManual(){ document.getElementById("isi-modal").style.display="none"; isiId=null; isiTahap=null; }
+function simpanIsiManual(){
+  const o=STATE[isiId]; if(!o){closeIsiManual();return}
+  const wVal=document.getElementById("isi-waktu").value;
+  if(!wVal){toast("Isi waktu kejadian dulu.");return}
+  const ms=new Date(wVal).getTime();
+  if(isNaN(ms)){toast("Format waktu tidak valid.");return}
+  const ketEx=document.getElementById("isi-ket").value.trim();
+  const label=tsToLabel(ms);
+  const ket="Diisi oleh admin"+(ketEx?" — "+ketEx:"");
+  if(isiTahap==="tiba"){
+    upd(isiId,x=>{
+      x.status="bongkar"; x.tibaTs=ms; x.tibaAt=label; x.tibaByAdmin=true;
+      x.log.push({t:now(),e:"🗂 Admin mengisi laporan TIBA (sopir belum/lupa update)"+(ketEx?" — "+ketEx:"")});
+    });
+    const x=STATE[isiId];
+    if(x) kirimReport(x,"Tiba di Gudang",ket,{waktuEvent:ms,olehAdmin:true});
+    toast("Laporan tiba (manual) tersimpan.");
+  }else{
+    upd(isiId,x=>{
+      if(!x.tibaTs){ x.tibaTs=ms; x.tibaAt=label; x.tibaByAdmin=true; }  // agar tetap terhitung di akurasi
+      x.status="selesai"; x.bongkarTs=ms; x.bongkarAt=label; x.bongkarByAdmin=true;
+      x.log.push({t:now(),e:"🗂 Admin mengisi laporan BONGKAR & menyelesaikan (sopir belum/lupa update)"+(ketEx?" — "+ketEx:"")});
+    });
+    const x=STATE[isiId];
+    if(x) kirimReport(x,"Bongkar Selesai",ket,{waktuEvent:ms,olehAdmin:true});
+    toast("Laporan bongkar (manual) tersimpan.");
+  }
+  closeIsiManual();
+}
+
 function renderAdmin(){
   if(!adminAuthed){applyAdminGate();return}   // jangan render data sebelum login
   const d=load();
   document.getElementById("s-wait").textContent=d.filter(o=>o.status==="jalan").length;
   document.getElementById("s-jalan").textContent=d.filter(o=>["tiba","bongkar"].includes(o.status)).length;
   document.getElementById("s-selesai").textContent=d.filter(o=>o.status==="selesai").length;
+  renderMonFilter(d);
+  const filtered=d.filter(o=>cocokStatus(o)&&cocokCari(o));
   const list=document.getElementById("admin-list");
-  if(!d.length){list.innerHTML=`<div class="empty"><span class="big">📭</span>Belum ada pendaftaran.</div>`;}
-  else list.innerHTML=d.map(adminCard).join("");
+  const info=document.getElementById("mon-count");
+  if(list){
+    if(!d.length){
+      list.innerHTML=`<div class="empty"><span class="big">📭</span>Belum ada pendaftaran.</div>`;
+      if(info)info.textContent="";
+    } else if(!filtered.length){
+      list.innerHTML=`<div class="empty"><span class="big">🔍</span>Tidak ada pengiriman yang cocok.<br>
+        <button class="act ghost" style="width:auto;margin-top:12px;padding:8px 16px;font-size:13px" onclick="resetMonFilter()">Reset filter</button></div>`;
+      if(info)info.textContent="";
+    } else {
+      list.innerHTML=filtered.map(adminCard).join("");
+      if(info)info.textContent=`Menampilkan ${filtered.length} dari ${d.length} pengiriman`;
+    }
+  }
   renderLate(d);
   renderAccuracy(d);
 }
@@ -975,11 +1150,13 @@ function adminCard(o){
   const s=STATUS[o.status]||{t:o.status||"?",c:"p-selesai"};
   let acts="";
   if(o.status==="jalan") acts=`<div class="acts">
-    <button class="act" onclick="openTrack('${o.id}')">🛰 Lacak Live</button></div>`;
+    <button class="act" onclick="openTrack('${o.id}')">🛰 Lacak Live</button>
+    <button class="act ghost" onclick="openIsiManual('${o.id}','tiba')">🗂 Isi Tiba (manual)</button></div>`;
   const dl=(f,n)=>o[f]?`<a class="dl" href="${o[f]}" download="${n}-${o.plat}.jpg">⬇ Unduh ${n}</a>`:"";
   if(o.status==="bongkar"){
     acts=`<div class="acts">
-      <button class="act" onclick="openTrack('${o.id}')">🛰 Lacak Live (menunggu bongkar)</button></div>
+      <button class="act" onclick="openTrack('${o.id}')">🛰 Lacak Live (menunggu bongkar)</button>
+      <button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar (manual)</button></div>
       <div class="acts" style="flex-direction:column;gap:4px;margin-top:8px">${dl("fotoTiba","tiba")}</div>`;
   }
   if(o.status==="selesai"){
@@ -997,8 +1174,8 @@ function adminCard(o){
         ${o.leadtime!==""&&o.leadtime!=null?`🎯 Lead time: <b>${o.leadtime} hari</b> · ETA ${o.eta||"-"}<br>`:""}
         ${o.hp?`HP: ${o.hp} · `:""}Mulai: ${o.dibuat}
         ${o.ownerId?`<br><span style="opacity:.7">ID: ${o.ownerId}</span>`:""}
-        ${o.tibaAt?`<br>📍 Tiba dilaporkan: ${o.tibaAt}`:""}
-        ${o.bongkarAt?`<br>📦 Bongkar dilaporkan: ${o.bongkarAt}`:""}
+        ${o.tibaAt?`<br>📍 Tiba: ${o.tibaAt}${o.tibaByAdmin?` <span class="adm-tag">diisi admin</span>`:""}`:""}
+        ${o.bongkarAt?`<br>📦 Bongkar: ${o.bongkarAt}${o.bongkarByAdmin?` <span class="adm-tag">diisi admin</span>`:""}`:""}
         ${badgeKetepatan(o)}</div>
     </div><span class="pill ${s.c}">${s.t}</span></div>
     ${acts}
