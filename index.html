@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0062)file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/index_16.html -->
+<!-- saved from url=(0062)file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/index_18.html -->
 <html lang="id"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UNIFAM Transport Monitoring</title>
-<link rel="stylesheet" href="./UNIFAM Transport Monitoring rev15_files/leaflet.css" onerror="this.onerror=null;this.href=&#39;https://unpkg.com/leaflet@1.9.4/dist/leaflet.css&#39;;">
+<link rel="stylesheet" href="./index_files/leaflet.css" onerror="this.onerror=null;this.href=&#39;https://unpkg.com/leaflet@1.9.4/dist/leaflet.css&#39;;">
 <script>
   // Pastikan CSS Leaflet termuat; jika cloudflare gagal, sisipkan unpkg & jsdelivr
   (function(){
@@ -39,7 +39,7 @@
     }
     tryNext();
   })();
-</script><script src="./UNIFAM Transport Monitoring rev15_files/leaflet.min.js.download"></script><script src="file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/UNIFAM%20Transport%20Monitoring%20rev10_files/leaflet.min.js.download"></script>
+</script><script src="./index_files/leaflet.min.js.download"></script><script src="file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/UNIFAM%20Transport%20Monitoring%20rev10_files/leaflet.min.js.download"></script>
 <script type="module">
   // ====== FIREBASE SDK ======
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -325,7 +325,16 @@
       <input id="rc2-container" placeholder="cth. ABCU1234567" style="text-transform:uppercase" maxlength="20" oninput="cekLanjutBtn()">
       <label>Nama Anda (Sopir 2)</label>
       <input id="rc2-nama" placeholder="cth. Andi" maxlength="40" oninput="cekLanjutBtn()">
-      <button class="act" id="btn-lanjut-ctr" style="display:none" onclick="lanjutContainer()">🚚 Lanjutkan Pengiriman untuk Container ini</button>
+      <button class="act" id="btn-lanjut-ctr" style="display:none" onclick="cariContainer()">🔎 Cari Pengiriman Container</button>
+    </div>
+
+    <!-- konfirmasi Sopir 2 sebelum start -->
+    <div class="card" id="konfirm-ctr" style="display:none">
+      <h2>Konfirmasi Pengiriman</h2>
+      <p class="sub">Pastikan ini pengiriman yang benar sebelum mulai mengantar ke distributor.</p>
+      <div id="kc-detail" style="background:#f6f4ee;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13.5px;line-height:1.6"></div>
+      <button class="act" style="margin-top:12px" onclick="mulaiAntarContainer()">✅ Antar Pengiriman ke Distributor</button>
+      <button class="act ghost" style="margin-top:8px" onclick="batalKonfirm()">← Bukan ini, cari lagi</button>
     </div>
 
     <!-- status pengiriman aktif sopir -->
@@ -553,6 +562,17 @@ function gpsAktifUntuk(status){ return ["jalan","bongkar","bongkar2","ctr_jalan1
 function gpsOwner(o){
   if(o.mode==="container" && ["ctr_jalan2","bongkar","bongkar2"].includes(o.status)) return o.ownerId2||o.ownerId;
   return o.ownerId;
+}
+// apakah pengiriman ini masih menjadi tanggung jawab AKTIF perangkat ini?
+// container: Sopir 1 aktif hanya sampai menuju pelabuhan; setelah di pelabuhan -> tugas Sopir 1 selesai.
+function aktifUntukSaya(o){
+  if(o.status==="selesai") return false;
+  if(o.mode==="container"){
+    if(o.ownerId===myId && o.status==="ctr_jalan1") return true;                    // Sopir 1: hanya leg menuju pelabuhan
+    if(o.ownerId2===myId && ["ctr_jalan2","bongkar","bongkar2"].includes(o.status)) return true; // Sopir 2: leg distributor
+    return false;
+  }
+  return isMine(o);  // mobil
 }
 // pemilik pengiriman: sopir 1 (ownerId) ATAU sopir 2 container (ownerId2)
 function isMine(o){ return o && (o.ownerId===myId || o.ownerId2===myId); }
@@ -870,6 +890,7 @@ function daftar(){
 
 /* ---------- MODE SOPIR: Mobil / Container ---------- */
 let sopirMode = "";   // "" = belum dipilih (form disembunyikan sampai sopir memilih)
+let konfirmId=null, konfirmNama2="", konfirmOpen=false;   // state konfirmasi Sopir 2
 function setSopirMode(m){
   sopirMode=m;
   const on=(id,v)=>{const e=document.getElementById(id);if(e)e.classList.toggle("on",v);};
@@ -940,7 +961,7 @@ function showLeadInfoC(nama){
 function daftarContainer(){
   if(!fbReady){toast("Koneksi server belum siap, coba lagi sebentar.");return}
   const g=id=>document.getElementById(id).value.trim();
-  const nama=g("fc-nama"),eksp=g("fc-eksp"),hp=g("fc-hp"),noContainer=g("fc-container").toUpperCase(),
+  const nama=g("fc-nama"),eksp=g("fc-eksp"),hp=g("fc-hp"),noContainer=g("fc-container").toUpperCase().replace(/\s+/g,""),
         jenis=g("fc-jenis"),tujuan=g("fc-tujuan"),sjNo=g("fc-sj");
   if(!nama||!noContainer||!tujuan){toast("Lengkapi nama, nomor container, dan tujuan");return}
   const lead=cariLead(tujuan);
@@ -978,28 +999,43 @@ function laporPelabuhan(id){
   toast("Container sampai pelabuhan. Sopir 2 dapat melanjutkan.");
 }
 
-/* ---------- SOPIR 2: lanjutkan pengiriman container ---------- */
-function lanjutContainer(){
+/* ---------- SOPIR 2: cari container -> konfirmasi -> antar ---------- */
+const normC=s=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");   // abai spasi/karakter
+function cariContainer(){
   if(!fbReady){toast("Koneksi server belum siap.");return}
   const noC=document.getElementById("rc2-container").value.trim();
   const nama2=document.getElementById("rc2-nama").value.trim();
   if(!noC){toast("Isi Nomor Container.");return}
   if(!nama2){toast("Isi Nama Anda (Sopir 2).");return}
-  const norm=s=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
-  const cN=norm(noC);
+  const cN=normC(noC);
   // boleh lanjut dari ctr_jalan1 (Sopir 1 lupa tandai pelabuhan) maupun ctr_pelabuhan
   const match=Object.values(STATE).find(o=>
-    o.mode==="container" && ["ctr_jalan1","ctr_pelabuhan"].includes(o.status) && norm(o.noContainer)===cN);
+    o.mode==="container" && ["ctr_jalan1","ctr_pelabuhan"].includes(o.status) && normC(o.noContainer)===cN);
   if(!match){toast("Container tidak ditemukan / sudah selesai. Cek Nomor Container.");return}
+  konfirmId=match.id; konfirmNama2=nama2; konfirmOpen=true;
+  document.getElementById("kc-detail").innerHTML=
+    `📦 <b>Container:</b> ${match.noContainer}<br>
+     📄 <b>No. SJ:</b> ${match.noSJ||"-"}<br>
+     🏢 <b>Tujuan:</b> ${match.tujuan}<br>
+     🚚 <b>Ekspedisi:</b> ${match.eksp||"-"}<br>
+     👤 <b>Sopir 1:</b> ${match.nama||"-"}<br>
+     🧑‍✈️ <b>Anda (Sopir 2):</b> ${konfirmNama2}`;
+  renderSopir();  // atur tampil: sembunyikan input, tampilkan konfirmasi
+}
+function batalKonfirm(){ konfirmOpen=false; konfirmId=null; renderSopir(); }
+function mulaiAntarContainer(){
+  const match=STATE[konfirmId];
+  if(!match){toast("Pengiriman tidak ditemukan.");batalKonfirm();return}
   const t=now();
   const lupaP = match.status==="ctr_jalan1";
+  const nama2=konfirmNama2;
   upd(match.id,o=>{
     o.ownerId2=myId; if(nama2)o.sopir2=nama2;
-    if(!o.pelabuhanTs){ o.pelabuhanTs=Date.now(); o.pelabuhanAt=t; o.pelabuhanByAuto=true; }  // sopir 1 lupa -> tandai otomatis
+    if(!o.pelabuhanTs){ o.pelabuhanTs=Date.now(); o.pelabuhanAt=t; o.pelabuhanByAuto=true; }
     o.status="ctr_jalan2";
     o.berangkat2Ts=Date.now(); o.berangkat2At=t;
     o._gap=true;   // ada jeda pelayaran sebelum rute Sopir 2
-    o.log.push({t,e:`🚚 Sopir 2${nama2?" ("+nama2+")":""} melanjutkan pengiriman dari pelabuhan tujuan, GPS aktif menuju distributor`+(lupaP?" (Sopir 1 belum menandai pelabuhan — ditandai otomatis)":"")});
+    o.log.push({t,e:`🚚 Sopir 2${nama2?" ("+nama2+")":""} mulai mengantar ke distributor, GPS aktif`+(lupaP?" (Sopir 1 belum menandai pelabuhan — ditandai otomatis)":"")});
   });
   const x=STATE[match.id];
   if(x){
@@ -1009,19 +1045,22 @@ function lanjutContainer(){
   document.getElementById("rc2-container").value="";
   document.getElementById("rc2-nama").value="";
   const bl=document.getElementById("btn-lanjut-ctr"); if(bl) bl.style.display="none";
+  konfirmOpen=false; konfirmId=null;
   startGps(match.id);
-  toast("Pengiriman container dilanjutkan. GPS aktif menuju distributor.");
+  toast("Pengiriman dimulai. GPS aktif menuju distributor.");
   render();
 }
 
 /* ---------- SOPIR: kartu aktif ---------- */
 function renderSopir(){
   const wrap=document.getElementById("sopir-active");
-  const d=load().filter(o=>isMine(o) && o.status!=="selesai");
+  const d=load().filter(aktifUntukSaya);
   const rc=document.getElementById("recover-card");
   if(rc) rc.style.display = (d.length || sopirMode!=="mobil") ? "none" : "block";
   const rcc=document.getElementById("recover-ctr");
-  if(rcc) rcc.style.display = (!d.length && sopirMode==="container") ? "block" : "none";
+  if(rcc) rcc.style.display = (!d.length && sopirMode==="container" && !konfirmOpen) ? "block" : "none";
+  const kcc=document.getElementById("konfirm-ctr");
+  if(kcc) kcc.style.display = (!d.length && sopirMode==="container" && konfirmOpen) ? "block" : "none";
   const section=document.getElementById("v-sopir");
   const picker=document.getElementById("mode-picker");
   if(!d.length){
@@ -1097,7 +1136,7 @@ function camBlock(o,field,label){
   const inputId="cam-"+o.id+"-"+field;
   const camTxt = field==="fotoTiba" ? "Bukti Foto Kedatangan di Distributor"
     : field==="fotoPelabuhan" ? "Bukti Foto Container di Pelabuhan"
-    : "Foto Surat Jalan di-TTD Distributor";
+    : "Bukti Foto SJ di stempel Distributor";
   return `<label>${label}</label>
     <input id="${inputId}" type="file" accept="image/*" capture="environment"
       style="display:none" onchange="fotoUp(event,'${o.id}','${field}')">
