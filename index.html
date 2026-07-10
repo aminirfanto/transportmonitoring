@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0062)file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/index_15.html -->
+<!-- saved from url=(0062)file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/index_16.html -->
 <html lang="id"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UNIFAM Transport Monitoring</title>
-<link rel="stylesheet" href="./UNIFAM Transport Monitoring rev14_files/leaflet.css" onerror="this.onerror=null;this.href=&#39;https://unpkg.com/leaflet@1.9.4/dist/leaflet.css&#39;;">
+<link rel="stylesheet" href="./UNIFAM Transport Monitoring rev15_files/leaflet.css" onerror="this.onerror=null;this.href=&#39;https://unpkg.com/leaflet@1.9.4/dist/leaflet.css&#39;;">
 <script>
   // Pastikan CSS Leaflet termuat; jika cloudflare gagal, sisipkan unpkg & jsdelivr
   (function(){
@@ -39,7 +39,7 @@
     }
     tryNext();
   })();
-</script><script src="./UNIFAM Transport Monitoring rev14_files/leaflet.min.js.download"></script><script src="file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/UNIFAM%20Transport%20Monitoring%20rev10_files/leaflet.min.js.download"></script>
+</script><script src="./UNIFAM Transport Monitoring rev15_files/leaflet.min.js.download"></script><script src="file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/UNIFAM%20Transport%20Monitoring%20rev10_files/leaflet.min.js.download"></script>
 <script type="module">
   // ====== FIREBASE SDK ======
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -503,7 +503,9 @@ async function kirimReport(o,tahap,keterangan,opts){
     tahapKey: opts.tahapKey || TAHAP_KEY[tahap] || "berangkat",
     waktuEvent: opts.waktuEvent || Date.now(),
     olehAdmin: !!opts.olehAdmin,
-    id:o.id,nama:o.nama,eksp:o.eksp,hp:o.hp,plat:o.plat,jenis:o.jenis,
+    mode: o.mode||"mobil",
+    id:o.id,nama:o.nama,sopir2:o.sopir2||"",eksp:o.eksp,hp:o.hp,
+    plat:o.plat,noContainer:o.noContainer||"",jenis:o.jenis,
     tujuan:o.tujuan,noSJ:o.noSJ,leadtime:o.leadtime,eta:o.eta,status:o.status};
   for(let i=0;i<2;i++){
     try{
@@ -546,7 +548,12 @@ function startSync(){
 }
 // nyalakan GPS otomatis untuk pengiriman 'jalan' milik perangkat ini
 // status yang GPS-nya harus aktif: dalam perjalanan & menunggu bongkar
-function gpsAktifUntuk(status){ return ["jalan","bongkar","ctr_jalan1","ctr_jalan2"].includes(status); }
+function gpsAktifUntuk(status){ return ["jalan","bongkar","bongkar2","ctr_jalan1","ctr_jalan2"].includes(status); }
+// perangkat yang seharusnya merekam GPS untuk tahap ini (leg-2 container = Sopir 2)
+function gpsOwner(o){
+  if(o.mode==="container" && ["ctr_jalan2","bongkar","bongkar2"].includes(o.status)) return o.ownerId2||o.ownerId;
+  return o.ownerId;
+}
 // pemilik pengiriman: sopir 1 (ownerId) ATAU sopir 2 container (ownerId2)
 function isMine(o){ return o && (o.ownerId===myId || o.ownerId2===myId); }
 // kode unit tampil: container -> No. Container, mobil -> plat
@@ -555,16 +562,16 @@ function modeIcon(o){ return o.mode==="container" ? "🚢" : "🚛"; }
 // sedang dalam perjalanan (mobil & container, semua tahap gerak/menunggu kapal)
 function sedangJalan(o){ return ["jalan","ctr_jalan1","ctr_pelabuhan","ctr_jalan2"].includes(o.status); }
 function autoResumeGps(){
-  const mine=Object.values(STATE).find(o=>isMine(o) && gpsAktifUntuk(o.status));
+  const mine=Object.values(STATE).find(o=>gpsAktifUntuk(o.status) && gpsOwner(o)===myId);
   if(mine && trackingId!==mine.id){
     mine._gap=true;           // tandai ada kemungkinan jeda saat resume
     startGps(mine.id);
     if(!resumeChecked){toast("Melanjutkan rekam GPS pengiriman aktif Anda.");resumeChecked=true;}
   }
-  // auto-stop: pengiriman milik perangkat ini yang sedang direkam tapi sudah tak butuh GPS
+  // auto-stop: pengiriman yang sedang direkam tapi bukan tanggung jawab GPS perangkat ini lagi
   if(trackingId){
     const cur=STATE[trackingId];
-    if(cur && isMine(cur) && !gpsAktifUntuk(cur.status)){ stopGps(); }
+    if(cur && (!gpsAktifUntuk(cur.status) || gpsOwner(cur)!==myId)){ stopGps(); }
   }
 }
 if(window.FB&&window.FB.ready){ startSync(); }
@@ -672,6 +679,7 @@ const STATUS={
   jalan:{t:"Dalam Perjalanan",c:"p-jalan"},
   tiba:{t:"Tiba di Gudang",c:"p-tiba"},
   bongkar:{t:"Menunggu Dibongkar",c:"p-bongkar"},
+  bongkar2:{t:"Proses Bongkar · Menunggu Bukti SJ",c:"p-bongkar"},
   selesai:{t:"Selesai",c:"p-selesai"},
   ctr_jalan1:{t:"Menuju Pelabuhan",c:"p-jalan"},
   ctr_pelabuhan:{t:"Di Pelabuhan / Pelayaran",c:"p-tiba"},
@@ -887,6 +895,7 @@ function initSopirView(){
     const t=document.getElementById("rc2-title"); if(t) t.textContent="Lanjutkan Pengiriman Container (Sopir 2)";
     const sub=document.getElementById("rc2-sub"); if(sub) sub.innerHTML="🚢 Masukkan <b>Nomor Container</b> dan <b>nama Anda</b> untuk melanjutkan pengiriman ke distributor. Tombol lanjut muncul setelah keduanya diisi.";
     sopirMode="container";   // agar renderSopir menampilkan kartu lanjut container
+    cekLanjutBtn();
     renderSopir();
   } else {
     setSopirMode("");   // belum memilih; form tersembunyi sampai sopir memilih
@@ -965,7 +974,7 @@ function laporPelabuhan(id){
   const t=now();
   updMine(id,o=>{o.status="ctr_pelabuhan";o.pelabuhanAt=t;o.pelabuhanTs=Date.now();
     o.log.push({t,e:"🚢 Sopir 1 melapor container SAMPAI DI PELABUHAN keberangkatan (foto terlampir). GPS Sopir 1 dimatikan, menunggu Sopir 2."})});
-  // catatan: tahap pelabuhan hanya di app & Firebase (kolom Sheet tetap Berangkat/Tiba/Bongkar)
+  const o=STATE[id]; if(o) kirimReport(o,"Tiba Pelabuhan","Sopir 1 sampai pelabuhan keberangkatan (foto terlampir)",{waktuEvent:o.pelabuhanTs,tahapKey:"pelabuhan"});
   toast("Container sampai pelabuhan. Sopir 2 dapat melanjutkan.");
 }
 
@@ -978,16 +987,25 @@ function lanjutContainer(){
   if(!nama2){toast("Isi Nama Anda (Sopir 2).");return}
   const norm=s=>String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
   const cN=norm(noC);
+  // boleh lanjut dari ctr_jalan1 (Sopir 1 lupa tandai pelabuhan) maupun ctr_pelabuhan
   const match=Object.values(STATE).find(o=>
-    o.mode==="container" && o.status==="ctr_pelabuhan" && norm(o.noContainer)===cN);
-  if(!match){toast("Container tidak ditemukan / belum siap dilanjutkan. Pastikan Sopir 1 sudah menandai sampai pelabuhan.");return}
+    o.mode==="container" && ["ctr_jalan1","ctr_pelabuhan"].includes(o.status) && norm(o.noContainer)===cN);
+  if(!match){toast("Container tidak ditemukan / sudah selesai. Cek Nomor Container.");return}
   const t=now();
+  const lupaP = match.status==="ctr_jalan1";
   upd(match.id,o=>{
     o.ownerId2=myId; if(nama2)o.sopir2=nama2;
+    if(!o.pelabuhanTs){ o.pelabuhanTs=Date.now(); o.pelabuhanAt=t; o.pelabuhanByAuto=true; }  // sopir 1 lupa -> tandai otomatis
     o.status="ctr_jalan2";
+    o.berangkat2Ts=Date.now(); o.berangkat2At=t;
     o._gap=true;   // ada jeda pelayaran sebelum rute Sopir 2
-    o.log.push({t,e:`🚚 Sopir 2${nama2?" ("+nama2+")":""} melanjutkan pengiriman dari pelabuhan tujuan, GPS aktif menuju distributor`});
+    o.log.push({t,e:`🚚 Sopir 2${nama2?" ("+nama2+")":""} melanjutkan pengiriman dari pelabuhan tujuan, GPS aktif menuju distributor`+(lupaP?" (Sopir 1 belum menandai pelabuhan — ditandai otomatis)":"")});
   });
+  const x=STATE[match.id];
+  if(x){
+    if(lupaP) kirimReport(x,"Tiba Pelabuhan","Ditandai otomatis saat Sopir 2 melanjutkan (Sopir 1 belum lapor)",{waktuEvent:x.pelabuhanTs,tahapKey:"pelabuhan"});
+    kirimReport(x,"Berangkat Sopir 2","Sopir 2 berangkat dari pelabuhan menuju distributor",{waktuEvent:x.berangkat2Ts,tahapKey:"berangkat2"});
+  }
   document.getElementById("rc2-container").value="";
   document.getElementById("rc2-nama").value="";
   const bl=document.getElementById("btn-lanjut-ctr"); if(bl) bl.style.display="none";
@@ -1055,12 +1073,17 @@ function sopirCard(o){
   }
 
   if(o.status==="bongkar"){
-    const ready=o.fotoBongkar;
     acts=`<div class="done-note">✓ Kedatangan sudah dilaporkan${o.tibaAt?` (${o.tibaAt})`:""}.</div>
-      <div class="step-head">${o.mode==="container"?"Sopir 2 — Laporan Bongkar":"Langkah 2 — Laporan Bongkar"}</div>
-      <div class="hint">Setelah barang dibongkar, ambil foto bukti lalu laporkan. Ini mengakhiri tracking & mematikan GPS.</div>
-      ${camBlock(o,"fotoBongkar","Foto bongkar")}
-      <div class="acts"><button class="act danger" onclick="laporBongkar('${o.id}')" ${ready?"":"disabled"}>📨 Laporkan Bongkar & Selesai</button></div>`;
+      <div class="step-head">${o.mode==="container"?"Sopir 2 — ":""}Langkah — Konfirmasi Proses Bongkar</div>
+      <div class="hint">Saat barang mulai/selesai dibongkar, tekan tombol ini. <b>Tidak perlu foto.</b> GPS tetap aktif.</div>
+      <div class="acts"><button class="act" onclick="prosesBongkar('${o.id}')">🔧 Konfirmasi Proses Bongkar</button></div>`;
+  }
+  if(o.status==="bongkar2"){
+    acts=`<div class="done-note">✓ Proses bongkar dikonfirmasi${o.bongkarAt?` (${o.bongkarAt})`:""}.</div>
+      <div class="step-head">${o.mode==="container"?"Sopir 2 — ":""}Langkah Akhir — Bukti Surat Jalan</div>
+      <div class="hint">Kirim foto <b>Surat Jalan yang sudah distempel/ditandatangani distributor</b>. Ini mengakhiri tracking & mematikan GPS.</div>
+      ${camBlock(o,"fotoBongkar","Foto Surat Jalan (ttd distributor)")}
+      <div class="acts"><button class="act danger" onclick="laporSJ('${o.id}')" ${o.fotoBongkar?"":"disabled"}>📨 Kirim Bukti SJ & Selesai</button></div>`;
   }
   const idLabel = o.mode==="container" ? "No. Container" : "";
   return `<div class="order">
@@ -1074,7 +1097,7 @@ function camBlock(o,field,label){
   const inputId="cam-"+o.id+"-"+field;
   const camTxt = field==="fotoTiba" ? "Bukti Foto Kedatangan di Distributor"
     : field==="fotoPelabuhan" ? "Bukti Foto Container di Pelabuhan"
-    : "Bukti Foto Bongkar";
+    : "Foto Surat Jalan di-TTD Distributor";
   return `<label>${label}</label>
     <input id="${inputId}" type="file" accept="image/*" capture="environment"
       style="display:none" onchange="fotoUp(event,'${o.id}','${field}')">
@@ -1098,19 +1121,31 @@ function laporTiba(id){
   if(!o0||!o0.fotoTiba){toast("Ambil foto bukti tiba dulu sebelum melapor.");return}
   const t=now();
   updMine(id,o=>{o.status="bongkar";o.tibaAt=t;o.tibaTs=Date.now();
-    o.log.push({t,e:"📨 Laporan TIBA DI GUDANG dikirim (foto bukti terlampir), GPS tetap aktif hingga bongkar selesai"})});
-  const o=STATE[id]; if(o) kirimReport(o,"Tiba di Gudang","Sopir lapor tiba (foto terlampir)",{waktuEvent:o.tibaTs});
-  toast("Laporan tiba terkirim. GPS tetap aktif sampai bongkar.");
+    o.log.push({t,e:"📨 Laporan TIBA dikirim (foto kedatangan terlampir), GPS tetap aktif"})});
+  const o=STATE[id]; if(o) kirimReport(o,"Tiba","Sopir lapor tiba (foto kedatangan)",{waktuEvent:o.tibaTs,tahapKey:"tiba"});
+  toast("Laporan tiba terkirim. Selanjutnya konfirmasi proses bongkar.");
 }
-function laporBongkar(id){
+// langkah baru: konfirmasi proses bongkar (TANPA foto)
+function prosesBongkar(id){
   const o0=STATE[id];
-  if(!o0||!o0.fotoBongkar){toast("Ambil foto bukti bongkar dulu sebelum melapor.");return}
+  if(!o0)return;
+  const t=now();
+  updMine(id,o=>{o.status="bongkar2";o.bongkarAt=t;o.bongkarTs=Date.now();
+    o.log.push({t,e:"🔧 Proses bongkar dikonfirmasi (tanpa foto). Menunggu bukti Surat Jalan ttd distributor."})});
+  const o=STATE[id]; if(o) kirimReport(o,"Proses Bongkar","Sopir konfirmasi proses bongkar",{waktuEvent:o.bongkarTs,tahapKey:"bongkar"});
+  toast("Proses bongkar dikonfirmasi. Terakhir: kirim foto Surat Jalan yang distempel/ttd distributor.");
+}
+// langkah akhir: kirim bukti Surat Jalan ttd distributor (foto) -> selesai
+function laporSJ(id){
+  const o0=STATE[id];
+  if(!o0||!o0.fotoBongkar){toast("Ambil foto Surat Jalan yang di-ttd distributor dulu.");return}
   stopGps();
   const t=now();
-  updMine(id,o=>{o.status="selesai";o.bongkarAt=t;o.bongkarTs=Date.now();
-    o.log.push({t,e:"📨 Laporan BONGKAR dikirim (foto bukti bongkar terlampir), GPS dimatikan & tracking diakhiri"})});
-  const o=STATE[id]; if(o) kirimReport(o,"Bongkar Selesai","Sopir lapor bongkar selesai (foto terlampir)",{waktuEvent:o.bongkarTs});
-  toast("Laporan bongkar terkirim. Pengiriman selesai.");
+  updMine(id,o=>{o.status="selesai";o.sjAt=t;o.sjTs=Date.now();
+    if(!o.bongkarTs){o.bongkarTs=Date.now();o.bongkarAt=t;}   // jaga-jaga bila proses bongkar terlewat
+    o.log.push({t,e:"📨 Bukti Surat Jalan (ttd distributor) dikirim. Pengiriman SELESAI, GPS dimatikan."})});
+  const o=STATE[id]; if(o) kirimReport(o,"SJ TTD","Bukti Surat Jalan ttd distributor (foto terlampir)",{waktuEvent:o.sjTs,tahapKey:"sj"});
+  toast("Bukti Surat Jalan terkirim. Pengiriman selesai.");
 }
 function fotoUp(ev,id,field){
   const f=ev.target.files[0];if(!f)return;
@@ -1195,7 +1230,7 @@ let monSearch="";
 function cocokStatus(o){
   if(monFilter==="all")   return true;
   if(monFilter==="late")  return isTerlambat(o);
-  if(monFilter==="bongkar")return o.status==="tiba"||o.status==="bongkar";
+  if(monFilter==="bongkar")return ["tiba","bongkar","bongkar2"].includes(o.status);
   if(monFilter==="jalan")  return sedangJalan(o);
   return o.status===monFilter;
 }
@@ -1227,7 +1262,7 @@ function renderMonFilter(d){
   const cnt={
     all:d.length,
     jalan:d.filter(sedangJalan).length,
-    bongkar:d.filter(o=>["tiba","bongkar"].includes(o.status)).length,
+    bongkar:d.filter(o=>["tiba","bongkar","bongkar2"].includes(o.status)).length,
     selesai:d.filter(o=>o.status==="selesai").length,
     late:d.filter(isTerlambat).length
   };
@@ -1254,9 +1289,9 @@ function dtLocalValue(ms){
 function openIsiManual(id,tahap){
   const o=STATE[id]; if(!o)return;
   isiId=id; isiTahap=tahap;
-  document.getElementById("isi-title").textContent = tahap==="tiba" ? "Isi Manual: Sopir Tiba" : "Isi Manual: Sopir Bongkar / Selesai";
-  document.getElementById("isi-sub").innerHTML=`${o.plat} · <b>${o.nama}</b> → ${o.tujuan}`;
-  document.getElementById("isi-wlabel").textContent = tahap==="tiba" ? "Waktu tiba di gudang (sebenarnya)" : "Waktu bongkar selesai (sebenarnya)";
+  document.getElementById("isi-title").textContent = tahap==="tiba" ? "Isi Manual: Kedatangan (Tiba)" : "Isi Manual: Bongkar & Selesaikan";
+  document.getElementById("isi-sub").innerHTML=`${kodeUnit(o)} · <b>${o.nama}</b> → ${o.tujuan}`;
+  document.getElementById("isi-wlabel").textContent = tahap==="tiba" ? "Waktu tiba (sebenarnya)" : "Waktu bongkar selesai (sebenarnya)";
   document.getElementById("isi-waktu").value=dtLocalValue(Date.now());
   document.getElementById("isi-ket").value="";
   document.getElementById("isi-modal").style.display="flex";
@@ -1274,20 +1309,25 @@ function simpanIsiManual(){
   if(isiTahap==="tiba"){
     upd(isiId,x=>{
       x.status="bongkar"; x.tibaTs=ms; x.tibaAt=label; x.tibaByAdmin=true;
-      x.log.push({t:now(),e:"🗂 Admin mengisi laporan TIBA (sopir belum/lupa update)"+(ketEx?" — "+ketEx:"")});
+      x.log.push({t:now(),e:"🗂 Admin mengisi KEDATANGAN (sopir belum/lupa update)"+(ketEx?" — "+ketEx:"")});
     });
     const x=STATE[isiId];
-    if(x) kirimReport(x,"Tiba di Gudang",ket,{waktuEvent:ms,olehAdmin:true});
-    toast("Laporan tiba (manual) tersimpan.");
+    if(x) kirimReport(x,"Tiba",ket,{waktuEvent:ms,olehAdmin:true,tahapKey:"tiba"});
+    toast("Kedatangan (manual) tersimpan.");
   }else{
+    // isi bongkar & selesaikan langsung (backup admin, tanpa foto SJ)
     upd(isiId,x=>{
       if(!x.tibaTs){ x.tibaTs=ms; x.tibaAt=label; x.tibaByAdmin=true; }  // agar tetap terhitung di akurasi
-      x.status="selesai"; x.bongkarTs=ms; x.bongkarAt=label; x.bongkarByAdmin=true;
-      x.log.push({t:now(),e:"🗂 Admin mengisi laporan BONGKAR & menyelesaikan (sopir belum/lupa update)"+(ketEx?" — "+ketEx:"")});
+      x.bongkarTs=ms; x.bongkarAt=label; x.bongkarByAdmin=true;
+      x.sjTs=ms; x.sjAt=label; x.status="selesai";
+      x.log.push({t:now(),e:"🗂 Admin mengisi BONGKAR & menyelesaikan pengiriman (tanpa foto SJ)"+(ketEx?" — "+ketEx:"")});
     });
     const x=STATE[isiId];
-    if(x) kirimReport(x,"Bongkar Selesai",ket,{waktuEvent:ms,olehAdmin:true});
-    toast("Laporan bongkar (manual) tersimpan.");
+    if(x){
+      kirimReport(x,"Proses Bongkar",ket,{waktuEvent:ms,olehAdmin:true,tahapKey:"bongkar"});
+      kirimReport(x,"SJ TTD","Diselesaikan admin (tanpa foto SJ)"+(ketEx?" — "+ketEx:""),{waktuEvent:ms,olehAdmin:true,tahapKey:"sj"});
+    }
+    toast("Bongkar (manual) tersimpan & pengiriman diselesaikan.");
   }
   closeIsiManual();
 }
@@ -1296,7 +1336,7 @@ function renderAdmin(){
   if(!adminAuthed){applyAdminGate();return}   // jangan render data sebelum login
   const d=load();
   document.getElementById("s-wait").textContent=d.filter(sedangJalan).length;
-  document.getElementById("s-jalan").textContent=d.filter(o=>["tiba","bongkar"].includes(o.status)).length;
+  document.getElementById("s-jalan").textContent=d.filter(o=>["tiba","bongkar","bongkar2"].includes(o.status)).length;
   document.getElementById("s-selesai").textContent=d.filter(o=>o.status==="selesai").length;
   renderMonFilter(d);
   const filtered=d.filter(o=>cocokStatus(o)&&cocokCari(o));
@@ -1328,7 +1368,7 @@ function targetTibaTs(o){
   return t.getTime();
 }
 // sudah konfirmasi tiba? (status tiba/bongkar/selesai berarti sudah tiba di gudang)
-function sudahTiba(o){ return ["tiba","bongkar","selesai"].includes(o.status); }
+function sudahTiba(o){ return ["tiba","bongkar","bongkar2","selesai"].includes(o.status); }
 // terlambat TIBA = belum tiba & target sudah lewat
 function isTerlambat(o){
   const tgt=targetTibaTs(o);
@@ -1345,7 +1385,7 @@ function deadlineBongkarTs(o){
   d.setHours(23,59,59,999);
   return d.getTime();
 }
-function sudahBongkar(o){ return o.status==="selesai"; }
+function sudahBongkar(o){ return ["bongkar2","selesai"].includes(o.status); }
 // terlambat BONGKAR = sudah tiba (menunggu bongkar), belum selesai, lewat deadline bongkar
 function isTerlambatBongkar(o){
   const dl=deadlineBongkarTs(o);
@@ -1376,13 +1416,14 @@ function renderLateTiba(d){
     const lewat=Math.floor((Date.now()-targetTibaTs(o))/(1000*60*60*24));
     return `<div class="order">
       <div class="top"><div>
-        <div class="plate">${o.plat}</div>
+        <div class="plate">${modeIcon(o)} ${kodeUnit(o)}</div>
         <div class="meta"><b>${o.nama}</b> · ${o.eksp||"-"}<br>→ ${o.tujuan}<br>
           🎯 Lead time ${o.leadtime} hari · ETA ${o.eta||"-"}<br>Mulai: ${o.dibuat}</div>
       </div><span class="pill p-tolak">Telat ${lewat>0?lewat+" hari":"hari ini"}</span></div>
       <div class="acts">
         <button class="act" onclick="setAdminTab('mon');setTimeout(()=>openTrack('${o.id}'),200)">🛰 Lacak</button>
-        <button class="act ghost" onclick="openIsiManual('${o.id}','tiba')">🗂 Isi Tiba (manual)</button>
+        <button class="act ghost" onclick="openIsiManual('${o.id}','tiba')">🗂 Isi Tiba</button>
+        <button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar & Selesai</button>
       </div></div>`;
   }).join("");
 }
@@ -1402,13 +1443,13 @@ function renderLateBongkar(d){
     const lewatTxt = hari>=1 ? `${hari} hari` : `${Math.max(jam,0)} jam`;
     return `<div class="order">
       <div class="top"><div>
-        <div class="plate">${o.plat}</div>
+        <div class="plate">${modeIcon(o)} ${kodeUnit(o)}</div>
         <div class="meta"><b>${o.nama}</b> · ${o.eksp||"-"}<br>→ ${o.tujuan}<br>
           📍 Tiba: ${o.tibaAt||"-"}<br>⏰ Batas bongkar: <b>${tsToLabel(dl)}</b></div>
       </div><span class="pill p-tolak">Telat bongkar ${lewatTxt}</span></div>
       <div class="acts">
         <button class="act" onclick="setAdminTab('mon');setTimeout(()=>openTrack('${o.id}'),200)">🛰 Lacak</button>
-        <button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar (manual)</button>
+        <button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar & Selesai</button>
       </div></div>`;
   }).join("");
 }
@@ -1536,7 +1577,7 @@ function adminCard(o){
   if(o.status==="jalan"||o.status==="ctr_jalan2") manual=`<button class="act ghost" onclick="openIsiManual('${o.id}','tiba')">🗂 Isi Tiba (manual)</button>`;
   else if(o.status==="bongkar") manual=`<button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar (manual)</button>`;
   if(lacak||manual) acts=`<div class="acts">${lacak}${manual}</div>`;
-  const dls=[dl("fotoPelabuhan","pelabuhan"),dl("fotoTiba","tiba"),dl("fotoBongkar","bongkar")].filter(Boolean).join("");
+  const dls=[dl("fotoPelabuhan","foto pelabuhan"),dl("fotoTiba","foto kedatangan"),dl("fotoBongkar","foto SJ ttd")].filter(Boolean).join("");
   if(dls) acts+=`<div class="acts" style="flex-direction:column;gap:4px;margin-top:8px">${dls}</div>`;
   const tl=o.log.map(l=>`<li><b>${l.t}</b> — ${l.e}</li>`).join("");
   const isDummy = o.ownerId==="dummy" || String(o.id).startsWith("DUMMY_");
