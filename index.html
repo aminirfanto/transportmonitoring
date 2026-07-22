@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0062)file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/index_18.html -->
+<!-- saved from url=(0062)file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/index_20.html -->
 <html lang="id"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UNIFAM Transport Monitoring</title>
-<link rel="stylesheet" href="./index_files/leaflet.css" onerror="this.onerror=null;this.href=&#39;https://unpkg.com/leaflet@1.9.4/dist/leaflet.css&#39;;">
+<link rel="stylesheet" href="./UNIFAM Transport Monitoring rev17_files/leaflet.css" onerror="this.onerror=null;this.href=&#39;https://unpkg.com/leaflet@1.9.4/dist/leaflet.css&#39;;">
 <script>
   // Pastikan CSS Leaflet termuat; jika cloudflare gagal, sisipkan unpkg & jsdelivr
   (function(){
@@ -39,7 +39,7 @@
     }
     tryNext();
   })();
-</script><script src="./index_files/leaflet.min.js.download"></script><script src="file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/UNIFAM%20Transport%20Monitoring%20rev10_files/leaflet.min.js.download"></script>
+</script><script src="./UNIFAM Transport Monitoring rev17_files/leaflet.min.js.download"></script><script src="file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/UNIFAM%20Transport%20Monitoring%20rev10_files/leaflet.min.js.download"></script>
 <script type="module">
   // ====== FIREBASE SDK ======
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -325,6 +325,8 @@
       <input id="rc2-container" placeholder="cth. ABCU1234567" style="text-transform:uppercase" maxlength="20" oninput="cekLanjutBtn()">
       <label>Nama Anda (Sopir 2)</label>
       <input id="rc2-nama" placeholder="cth. Andi" maxlength="40" oninput="cekLanjutBtn()">
+      <label>No. HP Anda (opsional, untuk pengingat)</label>
+      <input id="rc2-hp" placeholder="08xx" inputmode="numeric" maxlength="15">
       <button class="act" id="btn-lanjut-ctr" style="display:none" onclick="cariContainer()">🔎 Cari Pengiriman Container</button>
     </div>
 
@@ -890,7 +892,7 @@ function daftar(){
 
 /* ---------- MODE SOPIR: Mobil / Container ---------- */
 let sopirMode = "";   // "" = belum dipilih (form disembunyikan sampai sopir memilih)
-let konfirmId=null, konfirmNama2="", konfirmOpen=false;   // state konfirmasi Sopir 2
+let konfirmId=null, konfirmNama2="", konfirmHp2="", konfirmOpen=false;   // state konfirmasi Sopir 2
 function setSopirMode(m){
   sopirMode=m;
   const on=(id,v)=>{const e=document.getElementById(id);if(e)e.classList.toggle("on",v);};
@@ -1005,6 +1007,7 @@ function cariContainer(){
   if(!fbReady){toast("Koneksi server belum siap.");return}
   const noC=document.getElementById("rc2-container").value.trim();
   const nama2=document.getElementById("rc2-nama").value.trim();
+  const hp2=(document.getElementById("rc2-hp").value||"").trim();
   if(!noC){toast("Isi Nomor Container.");return}
   if(!nama2){toast("Isi Nama Anda (Sopir 2).");return}
   const cN=normC(noC);
@@ -1012,7 +1015,7 @@ function cariContainer(){
   const match=Object.values(STATE).find(o=>
     o.mode==="container" && ["ctr_jalan1","ctr_pelabuhan"].includes(o.status) && normC(o.noContainer)===cN);
   if(!match){toast("Container tidak ditemukan / sudah selesai. Cek Nomor Container.");return}
-  konfirmId=match.id; konfirmNama2=nama2; konfirmOpen=true;
+  konfirmId=match.id; konfirmNama2=nama2; konfirmHp2=hp2; konfirmOpen=true;
   document.getElementById("kc-detail").innerHTML=
     `📦 <b>Container:</b> ${match.noContainer}<br>
      📄 <b>No. SJ:</b> ${match.noSJ||"-"}<br>
@@ -1030,7 +1033,7 @@ function mulaiAntarContainer(){
   const lupaP = match.status==="ctr_jalan1";
   const nama2=konfirmNama2;
   upd(match.id,o=>{
-    o.ownerId2=myId; if(nama2)o.sopir2=nama2;
+    o.ownerId2=myId; if(nama2)o.sopir2=nama2; if(konfirmHp2)o.hp2=konfirmHp2;
     if(!o.pelabuhanTs){ o.pelabuhanTs=Date.now(); o.pelabuhanAt=t; o.pelabuhanByAuto=true; }
     o.status="ctr_jalan2";
     o.berangkat2Ts=Date.now(); o.berangkat2At=t;
@@ -1044,6 +1047,7 @@ function mulaiAntarContainer(){
   }
   document.getElementById("rc2-container").value="";
   document.getElementById("rc2-nama").value="";
+  const hpf=document.getElementById("rc2-hp"); if(hpf) hpf.value="";
   const bl=document.getElementById("btn-lanjut-ctr"); if(bl) bl.style.display="none";
   konfirmOpen=false; konfirmId=null;
   startGps(match.id);
@@ -1444,6 +1448,49 @@ function setAdminTab(t){
 }
 
 /* ---------- PANEL TERLAMBAT TIBA ---------- */
+/* ---------- pengingat via WhatsApp (admin tap-kirim, gratis) ---------- */
+// format nomor ke internasional Indonesia (62...)
+function waNumber(hp){
+  let d=String(hp||"").replace(/\D/g,"");
+  if(!d)return "";
+  if(d.startsWith("0")) d="62"+d.slice(1);
+  else if(d.startsWith("8")) d="62"+d;
+  return d;
+}
+// tentukan penerima (container leg-2 -> Sopir 2 bila HP-nya ada)
+function waPenerima(o){
+  if(o.mode==="container" && ["ctr_jalan2","bongkar","bongkar2"].includes(o.status) && o.hp2)
+    return {hp:o.hp2, nama:o.sopir2||"Sopir 2"};
+  return {hp:o.hp, nama:o.nama};
+}
+// link aplikasi yang tepat untuk penerima
+function waAppLink(o){
+  const base=location.origin+location.pathname;
+  if(o.mode==="container" && ["ctr_jalan2","bongkar","bongkar2","ctr_pelabuhan","ctr_jalan1"].includes(o.status))
+    return base+"?s2=1";
+  return base;
+}
+function waPesan(o){
+  const p=waPenerima(o);
+  const kode=kodeUnit(o), tuj=o.tujuan||"-", link=waAppLink(o);
+  let inti;
+  if(o.status==="bongkar")
+    inti=`pengiriman *${kode}* sudah tiba di *${tuj}* tetapi belum ada konfirmasi bongkar`;
+  else if(o.status==="bongkar2")
+    inti=`pengiriman *${kode}* ke *${tuj}* belum dikirim bukti Surat Jalan (ttd distributor)`;
+  else
+    inti=`pengiriman *${kode}* ke *${tuj}* sudah melewati target tiba (ETA ${o.eta||"-"}) namun belum ada konfirmasi tiba`;
+  return `Halo ${p.nama}, ${inti}. Mohon segera buka aplikasi dan perbarui status:\n${link}\n\nTerima kasih 🙏 (UNIFAM Transport)`;
+}
+function ingatkanWA(id){
+  const o=STATE[id]; if(!o)return;
+  const p=waPenerima(o);
+  const num=waNumber(p.hp);
+  if(!num){toast("Nomor HP sopir tidak tersedia untuk pengiriman ini.");return}
+  const url="https://wa.me/"+num+"?text="+encodeURIComponent(waPesan(o));
+  window.open(url,"_blank");
+}
+
 function renderLateTiba(d){
   const late=d.filter(isTerlambat).sort((a,b)=>targetTibaTs(a)-targetTibaTs(b));
   const badge=document.getElementById("latetiba-badge");
@@ -1461,6 +1508,7 @@ function renderLateTiba(d){
       </div><span class="pill p-tolak">Telat ${lewat>0?lewat+" hari":"hari ini"}</span></div>
       <div class="acts">
         <button class="act" onclick="setAdminTab('mon');setTimeout(()=>openTrack('${o.id}'),200)">🛰 Lacak</button>
+        <button class="act" style="background:#25d366;border-color:#25d366" onclick="ingatkanWA('${o.id}')">💬 Ingatkan via WA</button>
         <button class="act ghost" onclick="openIsiManual('${o.id}','tiba')">🗂 Isi Tiba</button>
         <button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar & Selesai</button>
       </div></div>`;
@@ -1488,6 +1536,7 @@ function renderLateBongkar(d){
       </div><span class="pill p-tolak">Telat bongkar ${lewatTxt}</span></div>
       <div class="acts">
         <button class="act" onclick="setAdminTab('mon');setTimeout(()=>openTrack('${o.id}'),200)">🛰 Lacak</button>
+        <button class="act" style="background:#25d366;border-color:#25d366" onclick="ingatkanWA('${o.id}')">💬 Ingatkan via WA</button>
         <button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar & Selesai</button>
       </div></div>`;
   }).join("");
@@ -1612,10 +1661,11 @@ function adminCard(o){
   const dl=(f,n)=>o[f]?`<a class="dl" href="${o[f]}" download="${n}-${kode}.jpg">⬇ Unduh ${n}</a>`:"";
   let acts="";
   const lacak = gpsAktifUntuk(o.status) ? `<button class="act" onclick="openTrack('${o.id}')">🛰 Lacak Live</button>` : "";
+  const wa = (o.status!=="selesai" && (o.hp||o.hp2)) ? `<button class="act" style="background:#25d366;border-color:#25d366" onclick="ingatkanWA('${o.id}')">💬 Ingatkan via WA</button>` : "";
   let manual="";
   if(o.status==="jalan"||o.status==="ctr_jalan2") manual=`<button class="act ghost" onclick="openIsiManual('${o.id}','tiba')">🗂 Isi Tiba (manual)</button>`;
   else if(o.status==="bongkar") manual=`<button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar (manual)</button>`;
-  if(lacak||manual) acts=`<div class="acts">${lacak}${manual}</div>`;
+  if(lacak||wa||manual) acts=`<div class="acts">${lacak}${wa}${manual}</div>`;
   const dls=[dl("fotoPelabuhan","foto pelabuhan"),dl("fotoTiba","foto kedatangan"),dl("fotoBongkar","foto SJ ttd")].filter(Boolean).join("");
   if(dls) acts+=`<div class="acts" style="flex-direction:column;gap:4px;margin-top:8px">${dls}</div>`;
   const tl=o.log.map(l=>`<li><b>${l.t}</b> — ${l.e}</li>`).join("");
