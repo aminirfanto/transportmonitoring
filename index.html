@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0062)file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/index_20.html -->
+<!-- saved from url=(0062)file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/index_21.html -->
 <html lang="id"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UNIFAM Transport Monitoring</title>
-<link rel="stylesheet" href="./UNIFAM Transport Monitoring rev17_files/leaflet.css" onerror="this.onerror=null;this.href=&#39;https://unpkg.com/leaflet@1.9.4/dist/leaflet.css&#39;;">
+<link rel="stylesheet" href="./UNIFAM Transport Monitoring rev18_files/leaflet.css" onerror="this.onerror=null;this.href=&#39;https://unpkg.com/leaflet@1.9.4/dist/leaflet.css&#39;;">
 <script>
   // Pastikan CSS Leaflet termuat; jika cloudflare gagal, sisipkan unpkg & jsdelivr
   (function(){
@@ -39,7 +39,7 @@
     }
     tryNext();
   })();
-</script><script src="./UNIFAM Transport Monitoring rev17_files/leaflet.min.js.download"></script><script src="file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/UNIFAM%20Transport%20Monitoring%20rev10_files/leaflet.min.js.download"></script>
+</script><script src="./UNIFAM Transport Monitoring rev18_files/leaflet.min.js.download"></script><script src="file:///C:/Users/Moch%20Amin%20Irfanto/Downloads/UNIFAM%20Transport%20Monitoring%20rev10_files/leaflet.min.js.download"></script>
 <script type="module">
   // ====== FIREBASE SDK ======
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -388,6 +388,7 @@
       </div>
       <div class="admin-tabs">
         <button class="atab on" id="tab-mon" onclick="setAdminTab(&#39;mon&#39;)">📋 Monitoring</button>
+        <button class="atab" id="tab-etahari" onclick="setAdminTab(&#39;etahari&#39;)">🔔 ETA Hari Ini <span id="etahari-badge" class="tabbadge" style="display:none">0</span></button>
         <button class="atab" id="tab-latetiba" onclick="setAdminTab(&#39;latetiba&#39;)">🔴 Terlambat Tiba <span id="latetiba-badge" class="tabbadge" style="display:none">0</span></button>
         <button class="atab" id="tab-latebongkar" onclick="setAdminTab(&#39;latebongkar&#39;)">🟠 Terlambat Bongkar <span id="latebongkar-badge" class="tabbadge" style="display:none">0</span></button>
         <button class="atab" id="tab-acc" onclick="setAdminTab(&#39;acc&#39;)">📊 Akurasi On-Time</button>
@@ -419,6 +420,15 @@
       <div id="admin-list"></div>
     </div>
     </div><!-- /pane-mon -->
+
+    <!-- PANEL: ETA HARI INI (pengingat proaktif) -->
+    <div id="pane-etahari" style="display:none">
+      <div class="card">
+        <h2>ETA Hari Ini</h2>
+        <p class="sub">Pengiriman yang <b>target tibanya hari ini</b> tetapi belum selesai. Ingatkan sopir sekarang — selagi masih dalam perjalanan/di lokasi — agar tidak lupa konfirmasi.</p>
+        <div id="etahari-list"></div>
+      </div>
+    </div>
 
     <!-- PANEL: TERLAMBAT TIBA -->
     <div id="pane-latetiba" style="display:none">
@@ -1398,6 +1408,7 @@ function renderAdmin(){
       if(info)info.textContent=`Menampilkan ${filtered.length} dari ${d.length} pengiriman`;
     }
   }
+  renderEtaHariIni(d);
   renderLateTiba(d);
   renderLateBongkar(d);
   renderAccuracy(d);
@@ -1437,7 +1448,7 @@ function isTerlambatBongkar(o){
 
 /* ---------- tab admin ---------- */
 function setAdminTab(t){
-  ["mon","latetiba","latebongkar","acc"].forEach(k=>{
+  ["mon","etahari","latetiba","latebongkar","acc"].forEach(k=>{
     const pane=document.getElementById("pane-"+k);
     const tab=document.getElementById("tab-"+k);
     if(pane)pane.style.display = (k===t)?"block":"none";
@@ -1470,17 +1481,26 @@ function waAppLink(o){
     return base+"?s2=1";
   return base;
 }
+// target tiba = HARI INI (dan belum selesai)
+function etaHariIni(o){
+  const tgt=targetTibaTs(o);
+  if(tgt==null || o.status==="selesai") return false;
+  const d=new Date(tgt), n=new Date();
+  return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
+}
 function waPesan(o){
   const p=waPenerima(o);
   const kode=kodeUnit(o), tuj=o.tujuan||"-", link=waAppLink(o);
   let inti;
   if(o.status==="bongkar")
-    inti=`pengiriman *${kode}* sudah tiba di *${tuj}* tetapi belum ada konfirmasi bongkar`;
+    inti=`Pengiriman *${kode}* sudah tercatat tiba di *${tuj}*. Mohon konfirmasi *proses bongkar* di aplikasi saat barang dibongkar`;
   else if(o.status==="bongkar2")
-    inti=`pengiriman *${kode}* ke *${tuj}* belum dikirim bukti Surat Jalan (ttd distributor)`;
+    inti=`Untuk menyelesaikan pengiriman *${kode}* di *${tuj}*, mohon kirim *foto Surat Jalan yang distempel/ttd distributor* di aplikasi`;
+  else if(etaHariIni(o))
+    inti=`*Hari ini* adalah target tiba pengiriman *${kode}* ke *${tuj}*. Begitu sampai di distributor, mohon langsung konfirmasi di aplikasi: *Tiba → Proses Bongkar → Foto Surat Jalan*`;
   else
-    inti=`pengiriman *${kode}* ke *${tuj}* sudah melewati target tiba (ETA ${o.eta||"-"}) namun belum ada konfirmasi tiba`;
-  return `Halo ${p.nama}, ${inti}. Mohon segera buka aplikasi dan perbarui status:\n${link}\n\nTerima kasih 🙏 (UNIFAM Transport)`;
+    inti=`Mohon perbarui status pengiriman *${kode}* ke *${tuj}* di aplikasi saat tiba di distributor`;
+  return `Halo ${p.nama} 🙏\n\n${inti}.\n\nBuka aplikasi:\n${link}\n\nTerima kasih — UNIFAM Transport`;
 }
 function ingatkanWA(id){
   const o=STATE[id]; if(!o)return;
@@ -1489,6 +1509,31 @@ function ingatkanWA(id){
   if(!num){toast("Nomor HP sopir tidak tersedia untuk pengiriman ini.");return}
   const url="https://wa.me/"+num+"?text="+encodeURIComponent(waPesan(o));
   window.open(url,"_blank");
+}
+
+/* ---------- PANEL ETA HARI INI (pengingat proaktif) ---------- */
+function renderEtaHariIni(d){
+  const list=d.filter(etaHariIni).sort((a,b)=>(a.tujuan||"").localeCompare(b.tujuan||""));
+  const badge=document.getElementById("etahari-badge");
+  if(badge){ badge.textContent=list.length; badge.style.display=list.length?"inline-block":"none"; }
+  const box=document.getElementById("etahari-list");
+  if(!box)return;
+  if(!list.length){box.innerHTML=`<div class="empty"><span class="big">✅</span>Tidak ada pengiriman dengan ETA hari ini.</div>`;return}
+  box.innerHTML=list.map(o=>{
+    const p=waPenerima(o); const adaHp=!!waNumber(p.hp);
+    const stt=(STATUS[o.status]||{}).t||o.status;
+    return `<div class="order">
+      <div class="top"><div>
+        <div class="plate">${modeIcon(o)} ${kodeUnit(o)}</div>
+        <div class="meta"><b>${o.nama}</b>${o.sopir2?` / ${o.sopir2}`:""} · ${o.eksp||"-"}<br>→ ${o.tujuan}<br>
+          🎯 ETA: <b>${o.eta||"-"}</b> · Status: ${stt}
+          ${adaHp?"":`<br><span style="color:var(--bad)">⚠ No. HP sopir belum ada</span>`}</div>
+      </div><span class="pill p-tiba">ETA hari ini</span></div>
+      <div class="acts">
+        <button class="act" style="background:#25d366;border-color:#25d366" onclick="ingatkanWA('${o.id}')" ${adaHp?"":"disabled"}>💬 Ingatkan Sopir (WA)</button>
+        ${gpsAktifUntuk(o.status)?`<button class="act ghost" onclick="setAdminTab('mon');setTimeout(()=>openTrack('${o.id}'),200)">🛰 Lacak</button>`:""}
+      </div></div>`;
+  }).join("");
 }
 
 function renderLateTiba(d){
@@ -1508,7 +1553,6 @@ function renderLateTiba(d){
       </div><span class="pill p-tolak">Telat ${lewat>0?lewat+" hari":"hari ini"}</span></div>
       <div class="acts">
         <button class="act" onclick="setAdminTab('mon');setTimeout(()=>openTrack('${o.id}'),200)">🛰 Lacak</button>
-        <button class="act" style="background:#25d366;border-color:#25d366" onclick="ingatkanWA('${o.id}')">💬 Ingatkan via WA</button>
         <button class="act ghost" onclick="openIsiManual('${o.id}','tiba')">🗂 Isi Tiba</button>
         <button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar & Selesai</button>
       </div></div>`;
@@ -1536,7 +1580,6 @@ function renderLateBongkar(d){
       </div><span class="pill p-tolak">Telat bongkar ${lewatTxt}</span></div>
       <div class="acts">
         <button class="act" onclick="setAdminTab('mon');setTimeout(()=>openTrack('${o.id}'),200)">🛰 Lacak</button>
-        <button class="act" style="background:#25d366;border-color:#25d366" onclick="ingatkanWA('${o.id}')">💬 Ingatkan via WA</button>
         <button class="act ghost" onclick="openIsiManual('${o.id}','bongkar')">🗂 Isi Bongkar & Selesai</button>
       </div></div>`;
   }).join("");
